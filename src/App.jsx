@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { useLoadScript } from '@react-google-maps/api';
 
 // Page Components
 import HomePage from './pages/HomePage';
@@ -14,11 +15,22 @@ import AdminRoute from './components/AdminRoute';
 
 import './App.css';
 
+const libraries = ["places"];
+
 function App() {
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries,
+  });
+
+  useEffect(() => {
+    console.log(`[App.jsx] API Load Status: isLoaded=${isLoaded}, loadError=`, loadError);
+  }, [isLoaded, loadError]);
+
   return (
     <Routes>
       {/* Public Route */}
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<HomePage isLoaded={isLoaded} loadError={loadError} />} />
 
       {/* User Route */}
       <Route 

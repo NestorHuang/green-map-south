@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import ReportModal from './ReportModal';
 
@@ -54,5 +54,5 @@ const LocationDetailSheet = ({ location, onClose }) => {
   );
 };
 
-export default LocationDetailSheet;
+export default memo(LocationDetailSheet);
 

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
+import PlacesAutocomplete from './PlacesAutocomplete';
 
-const Header = ({ tags, onTagFilter, onSearch, onClearFilter }) => {
+const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
   const { user, loading: userLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -28,13 +29,13 @@ const Header = ({ tags, onTagFilter, onSearch, onClearFilter }) => {
   };
 
   const NavLinks = () => (
-    <>
+    <div className="flex items-center gap-4">
       {!adminLoading && isAdmin && (
-        <Link to="/admin" className="block md:inline-block text-sm font-semibold text-red-600 hover:underline px-4 py-2 md:p-0">管理後台</Link>
+        <Link to="/admin" className="text-sm font-semibold text-red-600 hover:underline">管理後台</Link>
       )}
-      <Link to="/upload" className="block md:inline-block text-sm text-blue-600 hover:underline px-4 py-2 md:p-0">上傳地點</Link>
-      <button onClick={handleSignOut} className="block md:inline-block text-sm text-gray-600 hover:underline px-4 py-2 md:p-0 text-left w-full">登出</button>
-    </>
+      <Link to="/upload" className="text-sm text-blue-600 hover:underline">上傳地點</Link>
+      <button onClick={handleSignOut} className="text-sm text-gray-600 hover:underline">登出</button>
+    </div>
   );
 
   return (
@@ -87,12 +88,7 @@ const Header = ({ tags, onTagFilter, onSearch, onClearFilter }) => {
       <div className={isMenuOpen ? 'hidden' : ''}>
         {/* Search Bar */}
         <div className="my-2">
-          <input
-            type="text"
-            placeholder="搜尋地點名稱..."
-            className="w-full p-2 border border-gray-300 rounded-md"
-            onChange={(e) => onSearch(e.target.value)}
-          />
+          <PlacesAutocomplete onPlaceSelect={onPlaceSelect} />
         </div>
 
         {/* Tag Filters */}
@@ -118,6 +114,6 @@ const Header = ({ tags, onTagFilter, onSearch, onClearFilter }) => {
   );
 };
 
-export default Header;
+export default memo(Header);
 
 

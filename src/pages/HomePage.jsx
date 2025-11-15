@@ -1,19 +1,41 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { GoogleMap, Marker } from '@react-google-maps/api';
 
 import Header from '../components/Header';
-import MapView from '../components/MapView';
 import LocationDetailSheet from '../components/LocationDetailSheet';
 
-function HomePage() {
+const KAOHSIUNG_STATION_COORDS = { lat: 22.6397, lng: 120.2999 };
+
+const containerStyle = {
+  width: '100%',
+  height: '100vh'
+};
+
+function HomePage({ isLoaded, loadError }) {
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  
-  // State for search and filter
-  const [searchTerm, setSearchTerm] = useState('');
+  const [center, setCenter] = useState(KAOHSIUNG_STATION_COORDS);
+  const [zoom, setZoom] = useState(16);
   const [filterTag, setFilterTag] = useState(null);
+
+  // GPS 優先邏輯
+  useEffect(() => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCenter({ lat: latitude, lng: longitude });
+      },
+      () => {
+        console.log("Could not get geolocation, defaulting to Kaohsiung Station.");
+      },
+      {
+        enableHighAccuracy: true,
+      }
+    );
+  }, []);
 
   // Fetch tags for the header
   useEffect(() => {
@@ -37,38 +59,34 @@ function HomePage() {
     };
   }, []);
 
-  // Fetch locations based on search and filter
+  // Fetch locations based on tag filter
   const fetchLocations = useCallback(async () => {
     try {
-      let locationsQuery = query(collection(db, 'locations'));
+      let locationsQuery;
 
-      // Apply filters
       if (filterTag) {
-        locationsQuery = query(locationsQuery, where('tags', 'array-contains', filterTag));
-      }
-      if (searchTerm) {
-        // Basic prefix search
-        locationsQuery = query(locationsQuery, where('name', '>=', searchTerm), where('name', '<=', searchTerm + '\uf8ff'));
+        locationsQuery = query(collection(db, 'locations'), where('tags', 'array-contains', filterTag));
+      } else {
+        locationsQuery = query(collection(db, 'locations'));
       }
 
       const querySnapshot = await getDocs(locationsQuery);
       const locationsData = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        const position = [data.position.latitude, data.position.longitude];
-        return { id: doc.id, ...data, position };
+        return { id: doc.id, ...doc.data() };
       });
       setLocations(locationsData);
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error("Error fetching locations: ", error);
-        console.log("Please ensure you have created the necessary composite indexes in Firestore.");
       }
     }
-  }, [searchTerm, filterTag]);
+  }, [filterTag]);
 
   useEffect(() => {
-    fetchLocations();
-  }, [fetchLocations]);
+    if (isLoaded) { // Only fetch locations when map is ready
+      fetchLocations();
+    }
+  }, [fetchLocations, isLoaded]);
 
   const handleMarkerClick = (location) => {
     setSelectedLocation(location);
@@ -78,39 +96,66 @@ function HomePage() {
     setSelectedLocation(null);
   };
 
-  const handleSearch = (term) => {
-    setSearchTerm(term);
-  };
+  const handlePlaceSelect = useCallback((coords) => {
+    if (coords) {
+      setCenter(coords);
+      setZoom(18);
+    }
+  }, []);
 
-  const handleTagFilter = (tagId) => {
+  const handleTagFilter = useCallback((tagId) => {
     setFilterTag(tagId);
-  };
+  }, []);
   
-  const handleClearFilter = () => {
+  const handleClearFilter = useCallback(() => {
     setFilterTag(null);
-  };
+  }, []);
+
+  if (loadError) return <div>地圖載入失敗，請檢查您的 API 金鑰或網路連線。</div>;
+  if (!isLoaded) return <div>地圖載入中...</div>;
 
   return (
-    <div style={{ height: '100vh', width: '100vw' }}>
+    <>
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={zoom}
+      >
+        {locations.map(location => {
+          const lat = location.position?._lat;
+          const lng = location.position?._long;
+
+          if (typeof lat !== 'number' || typeof lng !== 'number') {
+            console.error("Invalid location data found, skipping marker render:", location);
+            return null;
+          }
+          const position = { lat, lng };
+          return (
+            <Marker
+              key={location.id}
+              position={position}
+              onClick={() => handleMarkerClick(location)}
+            />
+          );
+        })}
+      </GoogleMap>
       <Header 
         tags={tags}
-        onSearch={handleSearch}
+        onPlaceSelect={handlePlaceSelect}
         onTagFilter={handleTagFilter}
         onClearFilter={handleClearFilter}
-      />
-      <MapView 
-        locations={locations}
-        onMarkerClick={handleMarkerClick} 
       />
       <LocationDetailSheet 
         location={selectedLocation}
         onClose={handleCloseSheet}
       />
-    </div>
+    </>
   );
 }
 
 export default HomePage;
+
+
 
 
 
