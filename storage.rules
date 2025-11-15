@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // --- Pending Photos ---
+    match /pending_photos/{fileId} {
+      
+      // Allow file creation by authenticated users.
+      allow create: if request.auth != null && fileId.matches(request.auth.uid + '_.*');
+      
+      // Allow reads for authenticated users.
+      allow read: if request.auth != null;
+      
+      // Deny updates.
+      allow update: if false;
+
+      // Allow deletes ONLY for users with an admin custom claim.
+      allow delete: if request.auth.token.admin == true;
+    }
+  }
+}
