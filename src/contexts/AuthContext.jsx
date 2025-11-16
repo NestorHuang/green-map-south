@@ -13,12 +13,14 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        // User is logged in, check for admin custom claim from their ID token.
+        // User is logged in, check for admin/superAdmin role custom claim from their ID token.
         try {
           // Passing `true` forces a token refresh, ensuring we have the latest claims.
           const idTokenResult = await user.getIdTokenResult(true);
-          // The 'admin' claim is set via a backend script (Cloud Function).
-          setIsAdmin(!!idTokenResult.claims.admin);
+          // The 'role' claim is set via Cloud Function (syncAdminStatus).
+          // User is admin if role is 'admin' or 'superAdmin'
+          const userRole = idTokenResult.claims.role;
+          setIsAdmin(userRole === 'admin' || userRole === 'superAdmin');
         } catch (error) {
           console.error("Error getting ID token result:", error);
           setIsAdmin(false);

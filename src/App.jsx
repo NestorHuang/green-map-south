@@ -8,10 +8,12 @@ import UploadPage from './pages/UploadPage';
 import AdminLayout from './pages/AdminLayout';
 import PendingLocationsPage from './pages/PendingLocationsPage';
 import ReportsPage from './pages/ReportsPage';
+import ManageAdminsPage from './pages/ManageAdminsPage';
 
 // Route Protection
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import SuperAdminRoute from './components/SuperAdminRoute';
 
 import './App.css';
 
@@ -43,7 +45,7 @@ function App() {
       />
 
       {/* Admin Routes */}
-      <Route 
+      <Route
         path="/admin"
         element={
           <ProtectedRoute>
@@ -55,6 +57,14 @@ function App() {
       >
         <Route path="pending" element={<PendingLocationsPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route
+          path="manage-admins"
+          element={
+            <SuperAdminRoute>
+              <ManageAdminsPage />
+            </SuperAdminRoute>
+          }
+        />
       </Route>
 
     </Routes>

@@ -39,7 +39,20 @@
 - ...
 
 ## `admins` (集合)
-管理員列表。
+管理員列表。此集合為權限管理的單一事實來源 (Source of Truth)。
 
 - **文件 ID**: 使用者的 UID
-- **name**: `string` - 管理員名稱 (或其他識別欄位)
+- **email**: `string` - 管理員的 Email 地址
+- **role**: `string` - 管理員角色
+  - `'admin'`: 一般管理員，可審核地點、處理回報
+  - `'superAdmin'`: 超級管理員，具備管理員管理權限
+- **addedAt**: `timestamp` - 新增時間 (自動設定為伺服器時間)
+
+**權限同步機制**:
+- 當此集合中的文件被建立、更新或刪除時，Cloud Function `syncAdminStatus` 會自動將 `role` 欄位同步到 Firebase Auth 的 Custom Claims
+- Custom Claim 格式: `{ role: 'admin' }` 或 `{ role: 'superAdmin' }`
+- 使用者必須登出並重新登入後，新的 Custom Claim 才會生效
+
+**管理方式**:
+- **網頁介面**: 超級管理員可透過 `/admin/manage-admins` 頁面新增、刪除、同步管理員
+- **命令列工具**: 提供 `add_admin.cjs`、`check_user_claims.cjs` 等 CLI 工具供離線管理

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
+import { useSuperAdmin } from '../hooks/useSuperAdmin';
 
 const AdminLayout = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const { isSuperAdmin } = useSuperAdmin();
 
   const SidebarContent = () => (
     <>
@@ -14,6 +16,11 @@ const AdminLayout = () => {
         <li className="mb-2">
           <Link to="/admin/reports" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>錯誤回報</Link>
         </li>
+        {isSuperAdmin && (
+          <li className="mb-2">
+            <Link to="/admin/manage-admins" className="block py-2 px-4 rounded hover:bg-gray-700 bg-red-900" onClick={() => setSidebarOpen(false)}>管理員管理</Link>
+          </li>
+        )}
         <li className="mt-6 border-t border-gray-700 pt-4">
           <Link to="/" className="block py-2 px-4 rounded hover:bg-gray-700">&larr; 回到前台</Link>
         </li>
