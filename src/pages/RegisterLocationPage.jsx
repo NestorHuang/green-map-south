@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, addDoc, GeoPoint, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, GeoPoint, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
+import { useAuth } from '../hooks/useAuth';
 
-const UploadPage = () => {
+const RegisterLocationPage = () => {
+  const { user, userProfile, loading: authLoading } = useAuth();
   const [formState, setFormState] = useState({ name: '', address: '', description: '' });
   const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  // 檢查用戶是否需要設定個人資料
+  useEffect(() => {
+    if (!authLoading && user && !userProfile) {
+      navigate('/profile');
+    }
+  }, [authLoading, user, userProfile, navigate]);
 
   useEffect(() => {
     const fetchTags = async () => {
@@ -32,19 +41,26 @@ const UploadPage = () => {
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setImageFile(e.target.files[0]);
+    const files = Array.from(e.target.files);
+    if (files.length > 10) {
+      alert('最多只能上傳 10 張圖片');
+      return;
     }
+    setImageFiles(files);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!auth.currentUser) {
-      setError('您必須登入才能上傳。');
+      setError('您必須登入才能登錄地點。');
       return;
     }
-    if (!formState.name || !formState.address || !imageFile) {
-      setError('請填寫地點名稱、地址並上傳一張照片。');
+    if (!userProfile) {
+      setError('請先完成個人資料設定。');
+      return;
+    }
+    if (!formState.name || !formState.address || imageFiles.length === 0) {
+      setError('請填寫地點名稱、地址並至少上傳一張照片。');
       return;
     }
     setLoading(true);
@@ -65,14 +81,18 @@ const UploadPage = () => {
         }
         throw new Error(`地理編碼失敗：${geoData.status} - ${geoData.error_message || ''}`);
       }
-      
+
       const { lat, lng } = geoData.results[0].geometry.location;
       const position = new GeoPoint(lat, lng);
 
-      // 2. Upload image to Firebase Storage
-      const imageRef = ref(storage, `pending_photos/${auth.currentUser.uid}_${Date.now()}_${imageFile.name}`);
-      const snapshot = await uploadBytes(imageRef, imageFile);
-      const photoURL = await getDownloadURL(snapshot.ref);
+      // 2. Upload all images to Firebase Storage
+      const photoURLs = [];
+      for (const file of imageFiles) {
+        const imageRef = ref(storage, `pending_photos/${auth.currentUser.uid}_${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(imageRef, file);
+        const photoURL = await getDownloadURL(snapshot.ref);
+        photoURLs.push(photoURL);
+      }
 
       // 3. Add document to 'pending_locations' in Firestore
       await addDoc(collection(db, 'pending_locations'), {
@@ -81,10 +101,20 @@ const UploadPage = () => {
         description: formState.description,
         tags: selectedTags,
         position: position,
-        photoURL: photoURL,
+        photoURLs: photoURLs,
+        photoURL: photoURLs[0], // 第一張作為主圖（向下兼容）
         submittedBy: auth.currentUser.uid,
         submittedAt: Timestamp.now(),
         status: 'pending',
+        // 登錄者資訊
+        submitterInfo: {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          displayName: userProfile.displayName,
+          isWildernessPartner: userProfile.isWildernessPartner || false,
+          groupName: userProfile.groupName || '',
+          naturalName: userProfile.naturalName || ''
+        }
       });
 
       // 4. Success and redirect
@@ -101,7 +131,22 @@ const UploadPage = () => {
 
   return (
     <div className="p-4 sm:p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">上傳新的綠活地點</h1>
+      <h1 className="text-3xl font-bold mb-6">登錄新的綠活地點</h1>
+
+      {/* 登錄者資訊顯示 */}
+      {userProfile && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-green-900 mb-2">登錄者資訊</h3>
+          <p className="text-sm text-gray-700">
+            {userProfile.isWildernessPartner && userProfile.groupName && userProfile.naturalName
+              ? `${userProfile.groupName} - ${userProfile.naturalName}`
+              : userProfile.displayName}
+          </p>
+          {userProfile.isWildernessPartner && (
+            <p className="text-xs text-green-600 mt-1">🌿 荒野夥伴</p>
+          )}
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">地點名稱*</label>
@@ -127,13 +172,27 @@ const UploadPage = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="photo" className="block text-sm font-medium text-gray-700">照片*</label>
-          <input type="file" name="photo" id="photo" required accept="image/*" className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100" onChange={handleFileChange} />
+          <label htmlFor="photo" className="block text-sm font-medium text-gray-700">
+            照片* <span className="text-xs text-gray-500">(最多 10 張)</span>
+          </label>
+          <input
+            type="file"
+            name="photo"
+            id="photo"
+            required
+            accept="image/*"
+            multiple
+            className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+            onChange={handleFileChange}
+          />
+          {imageFiles.length > 0 && (
+            <p className="mt-1 text-sm text-gray-500">已選擇 {imageFiles.length} 張圖片</p>
+          )}
         </div>
         {error && <p className="text-red-500 text-sm">{error}</p>}
         <div>
-          <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
-            {loading ? '提交中...' : '提交審核'}
+          <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400">
+            {loading ? '登錄中...' : '提交登錄'}
           </button>
         </div>
       </form>
@@ -141,5 +200,5 @@ const UploadPage = () => {
   );
 };
 
-export default UploadPage;
+export default RegisterLocationPage;
 

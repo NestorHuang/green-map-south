@@ -4,6 +4,24 @@
 
 *(詳細內容待補充)*
 
+## `users` (集合)
+使用者個人資料。
+
+- **文件 ID**: 使用者的 UID
+- **uid**: `string` - 使用者 UID（冗餘欄位，便於查詢）
+- **email**: `string` - 使用者 Email 地址
+- **displayName**: `string` - 使用者顯示名稱或暱稱
+- **isWildernessPartner**: `boolean` - 是否為荒野夥伴
+- **groupName**: `string` - 團名或分會（荒野夥伴適用，否則為空字串）
+- **naturalName**: `string` - 自然名（荒野夥伴適用，否則為空字串）
+- **createdAt**: `timestamp` - 資料建立時間
+- **updatedAt**: `timestamp` - 最後更新時間
+
+**存取規則**:
+- 使用者可讀取、建立、更新自己的資料
+- 管理員可讀取所有使用者資料
+- 禁止刪除使用者資料
+
 ## `locations` (集合)
 公開顯示的綠活地點。
 
@@ -12,9 +30,19 @@
 - **description**: `string` - 描述
 - **position**: `geopoint` - 地理座標
 - **tags**: `array` of `string` - 標籤 ID 列表
-- **photoURL**: `string` - 照片的公開 URL
+- **photoURL**: `string` - 主要照片的公開 URL（第一張圖片，向下兼容）
+- **photoURLs**: `array` of `string` - 所有照片的公開 URL 陣列（最多10張）
 - **status**: `string` - ('approved')
-- ...
+- **submitterInfo**: `object` - 登錄者資訊（見下方說明）
+- **approvedAt**: `timestamp` - 核准時間
+
+**submitterInfo 物件結構**:
+- **uid**: `string` - 登錄者 UID
+- **email**: `string` - 登錄者 Email
+- **displayName**: `string` - 登錄者顯示名稱
+- **isWildernessPartner**: `boolean` - 是否為荒野夥伴
+- **groupName**: `string` - 團名或分會
+- **naturalName**: `string` - 自然名
 
 ## `pending_locations` (集合)
 使用者提交，待審核的地點。結構與 `locations` 類似，但包含額外的提交資訊。
@@ -22,7 +50,10 @@
 - **submittedBy**: `string` - 使用者 UID
 - **submittedAt**: `timestamp` - 提交時間
 - **status**: `string` - ('pending')
-- ...
+- **submitterInfo**: `object` - 登錄者資訊（結構同 locations）
+- **photoURL**: `string` - 主要照片 URL
+- **photoURLs**: `array` of `string` - 所有照片 URL 陣列
+- *其他欄位同 locations*
 
 ## `tags` (集合)
 可用的綠活標籤。

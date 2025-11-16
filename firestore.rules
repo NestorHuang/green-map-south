@@ -40,5 +40,13 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if isSuperAdmin();
     }
+
+    // Users collection: users can read/write their own profile, admins can read all profiles
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false; // Nobody can delete user profiles
+    }
   }
 }

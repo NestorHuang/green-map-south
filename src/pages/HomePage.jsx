@@ -40,6 +40,8 @@ function HomePage({ isLoaded, loadError }) {
   // Fetch tags for the header
   useEffect(() => {
     let isMounted = true;
+    const abortController = new AbortController();
+
     const fetchTags = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'tags'));
@@ -48,14 +50,17 @@ function HomePage({ isLoaded, loadError }) {
           setTags(tagsData);
         }
       } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== 'AbortError' && isMounted) {
           console.error("Error fetching tags:", error);
         }
       }
     };
+
     fetchTags();
+
     return () => {
       isMounted = false;
+      abortController.abort();
     };
   }, []);
 

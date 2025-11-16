@@ -7,7 +7,7 @@ import { useAdmin } from '../hooks/useAdmin';
 import PlacesAutocomplete from './PlacesAutocomplete';
 
 const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
-  const { user, loading: userLoading } = useAuth();
+  const { user, userProfile, loading: userLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -33,7 +33,8 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       {!adminLoading && isAdmin && (
         <Link to="/admin" className="text-sm font-semibold text-red-600 hover:underline">管理後台</Link>
       )}
-      <Link to="/upload" className="text-sm text-blue-600 hover:underline">上傳地點</Link>
+      <Link to="/register" className="text-sm text-green-600 hover:underline">登錄地點</Link>
+      <Link to="/profile" className="text-sm text-blue-600 hover:underline">個人資料</Link>
       <button onClick={handleSignOut} className="text-sm text-gray-600 hover:underline">登出</button>
     </div>
   );
@@ -50,7 +51,11 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
         <div className="hidden md:flex items-center gap-4">
           {!userLoading && user ? (
             <>
-              <span className="text-sm">你好, {user.displayName}</span>
+              <span className="text-sm">
+                你好, {userProfile?.isWildernessPartner && userProfile?.groupName && userProfile?.naturalName
+                  ? `${userProfile.naturalName}(${userProfile.groupName})`
+                  : (userProfile?.displayName || user.displayName)}
+              </span>
               <NavLinks />
             </>
           ) : (
@@ -73,7 +78,11 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
         <div className="md:hidden mt-2">
           {!userLoading && user ? (
             <div className="border-t border-gray-200 pt-2">
-              <span className="block text-sm px-4 py-2">你好, {user.displayName}</span>
+              <span className="block text-sm px-4 py-2">
+                你好, {userProfile?.isWildernessPartner && userProfile?.groupName && userProfile?.naturalName
+                  ? `${userProfile.naturalName}(${userProfile.groupName})`
+                  : (userProfile?.displayName || user.displayName)}
+              </span>
               <NavLinks />
             </div>
           ) : !userLoading && !user && (

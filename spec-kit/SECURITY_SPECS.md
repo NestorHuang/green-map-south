@@ -85,6 +85,22 @@ Firestore 觸發的雲端函式，職責如下：
   - **寫入**: 僅限超級管理員可寫入 (`allow write: if isSuperAdmin();`)
   - 一般管理員**無法**新增或移除其他管理員，確保權限控制的完整性
 
+- **`users` 集合安全**:
+  - **讀取**: 使用者可讀取自己的資料或管理員可讀取所有資料
+    ```javascript
+    allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    ```
+  - **建立**: 使用者只能建立自己的資料
+    ```javascript
+    allow create: if request.auth != null && request.auth.uid == userId;
+    ```
+  - **更新**: 使用者只能更新自己的資料
+    ```javascript
+    allow update: if request.auth != null && request.auth.uid == userId;
+    ```
+  - **刪除**: 禁止刪除使用者資料 (`allow delete: if false;`)
+  - 確保使用者隱私，同時允許管理員查看登錄者資訊
+
 ## Firebase Storage 安全規則 (`storage.rules`)
 
 - **照片上傳**: 使用者只能上傳以自己 UID 開頭的檔案，防止惡意覆蓋他人檔案。

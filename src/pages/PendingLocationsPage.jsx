@@ -94,18 +94,56 @@ const PendingLocationsPage = () => {
         {pending.length === 0 ? (
           <p>目前沒有待審核的地點。</p>
         ) : (
-          pending.map(item => (
-            <div key={item.id} className="bg-white p-4 rounded-lg shadow">
-              <h2 className="text-lg font-bold">{item.name}</h2>
-              <p className="text-sm text-gray-600">{item.address}</p>
-              <p className="text-sm my-2">{item.description}</p>
-              {item.photoURL && <a href={item.photoURL} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline">查看照片</a>}
-              <div className="mt-4 flex gap-4">
-                <button onClick={() => handleApprove(item.id)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">核准</button>
-                <button onClick={() => handleReject(item.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">拒絕</button>
+          pending.map(item => {
+            const submitter = item.submitterInfo;
+            const submitterDisplay = submitter?.isWildernessPartner && submitter?.groupName && submitter?.naturalName
+              ? `${submitter.groupName}-${submitter.naturalName}`
+              : (submitter?.displayName || '未知使用者');
+
+            return (
+              <div key={item.id} className="bg-white p-4 rounded-lg shadow">
+                <h2 className="text-lg font-bold">{item.name}</h2>
+                <p className="text-sm text-gray-600">{item.address}</p>
+                <p className="text-sm my-2">{item.description}</p>
+
+                {/* 登錄者資訊 */}
+                <div className="my-3 p-3 bg-green-50 border border-green-200 rounded">
+                  <p className="text-xs text-gray-600 mb-1">登錄者</p>
+                  <p className="text-sm font-medium text-gray-900">{submitterDisplay}</p>
+                  {submitter?.isWildernessPartner && (
+                    <p className="text-xs text-green-600 mt-1">🌿 荒野夥伴</p>
+                  )}
+                </div>
+
+                {/* 圖片連結 */}
+                {item.photoURLs && item.photoURLs.length > 0 ? (
+                  <div className="my-2">
+                    <p className="text-xs text-gray-600 mb-1">圖片 ({item.photoURLs.length} 張):</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {item.photoURLs.map((url, index) => (
+                        <a
+                          key={index}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 text-sm hover:underline"
+                        >
+                          圖片 {index + 1}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : item.photoURL && (
+                  <a href={item.photoURL} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline">查看照片</a>
+                )}
+
+                <div className="mt-4 flex gap-4">
+                  <button onClick={() => handleApprove(item.id)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">核准</button>
+                  <button onClick={() => handleReject(item.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">拒絕</button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
