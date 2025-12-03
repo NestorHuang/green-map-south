@@ -74,11 +74,9 @@ Firestore 觸發的雲端函式，職責如下：
 - **`isAdmin()` 輔助函式**:
   ```javascript
   function isAdmin() {
-    return request.auth.token.role == 'admin' || isSuperAdmin();
+    return request.auth.token.role in ['admin', 'superAdmin'];
   }
   ```
-
-- **敏感操作保護**: 所有對資料庫的寫入操作（例如寫入 `locations`、刪除 `pending_locations`）都受到 `allow write: if isAdmin();` 的保護。
 
 - **`admins` 集合安全**:
   - **讀取**: 僅限管理員（一般管理員或超級管理員）可讀取 (`allow read: if isAdmin();`)
@@ -86,20 +84,26 @@ Firestore 觸發的雲端函式，職責如下：
   - 一般管理員**無法**新增或移除其他管理員，確保權限控制的完整性
 
 - **`users` 集合安全**:
-  - **讀取**: 使用者可讀取自己的資料或管理員可讀取所有資料
+  - **讀取**: 使用者可讀取自己的資料，管理員可讀取所有資料 (`allow read: if request.auth.uid == userId || isAdmin();`)
+  - **建立/更新**: 使用者只能建立/更新自己的資料
+  - **刪除**: 禁止刪除
+
+- **`locations` 集合安全**:
+  - **讀取**: 允許讀取已核准 (`status == 'approved'`) 的地點，或管理員可讀取所有地點
     ```javascript
-    allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    allow read: if resource.data.status == 'approved' || isAdmin();
     ```
-  - **建立**: 使用者只能建立自己的資料
-    ```javascript
-    allow create: if request.auth != null && request.auth.uid == userId;
-    ```
-  - **更新**: 使用者只能更新自己的資料
-    ```javascript
-    allow update: if request.auth != null && request.auth.uid == userId;
-    ```
-  - **刪除**: 禁止刪除使用者資料 (`allow delete: if false;`)
-  - 確保使用者隱私，同時允許管理員查看登錄者資訊
+    *(註：這是為了讓管理後台能順利載入所有地點列表，包含未核准或停用的地點)*
+  - **寫入**: 僅限管理員可寫入 (`allow write: if isAdmin();`)
+
+- **`pending_locations` 集合安全**:
+  - **讀取**: 僅限管理員
+  - **建立**: 任何已登入使用者可建立，且必須驗證 `typeId` 有效性
+  - **更新/刪除**: 僅限管理員
+
+- **`location_types` 集合安全**:
+  - **讀取**: 允許讀取已啟用 (`isActive == true`) 的類型，或管理員可讀取所有類型
+  - **寫入**: 僅限管理員
 
 ## Firebase Storage 安全規則 (`storage.rules`)
 

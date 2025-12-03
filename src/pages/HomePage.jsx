@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { GoogleMap, Marker } from '@react-google-maps/api';
+import { useLocationTypes } from '../contexts/LocationTypesContext';
 
 import Header from '../components/Header';
 import LocationDetailSheet from '../components/LocationDetailSheet';
@@ -13,6 +14,18 @@ const containerStyle = {
   height: '100vh'
 };
 
+// Function to create a custom SVG marker
+const createCustomMarker = (color = '#A9A9A9', emoji = '📍') => {
+  const svg = `
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <path fill="${color}" d="M24 4C15.163 4 8 11.163 8 20c0 10.5 16 24 16 24s16-13.5 16-24C40 11.163 32.837 4 24 4z"/>
+      <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="20" fill="#FFF">${emoji}</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
+
 function HomePage({ isLoaded, loadError }) {
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
@@ -20,6 +33,7 @@ function HomePage({ isLoaded, loadError }) {
   const [center, setCenter] = useState(KAOHSIUNG_STATION_COORDS);
   const [zoom, setZoom] = useState(16);
   const [filterTag, setFilterTag] = useState(null);
+  const { getTypeById } = useLocationTypes();
 
   // GPS 優先邏輯
   useEffect(() => {
@@ -40,7 +54,6 @@ function HomePage({ isLoaded, loadError }) {
   // Fetch tags for the header
   useEffect(() => {
     let isMounted = true;
-    const abortController = new AbortController();
 
     const fetchTags = async () => {
       try {
@@ -50,7 +63,7 @@ function HomePage({ isLoaded, loadError }) {
           setTags(tagsData);
         }
       } catch (error) {
-        if (error.name !== 'AbortError' && isMounted) {
+        if (isMounted) {
           console.error("Error fetching tags:", error);
         }
       }
@@ -60,7 +73,6 @@ function HomePage({ isLoaded, loadError }) {
 
     return () => {
       isMounted = false;
-      abortController.abort();
     };
   }, []);
 
@@ -135,11 +147,20 @@ function HomePage({ isLoaded, loadError }) {
             return null;
           }
           const position = { lat, lng };
+
+          const locationType = getTypeById(location.typeId);
+          const customIcon = createCustomMarker(locationType?.color, locationType?.iconEmoji);
+
           return (
             <Marker
               key={location.id}
               position={position}
               onClick={() => handleMarkerClick(location)}
+              icon={{
+                url: customIcon,
+                scaledSize: new window.google.maps.Size(48, 48),
+                anchor: new window.google.maps.Point(24, 48),
+              }}
             />
           );
         })}

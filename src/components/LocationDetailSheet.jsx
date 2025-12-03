@@ -2,17 +2,33 @@ import React, { useState, memo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import ReportModal from './ReportModal';
 import ImageSlider from './ImageSlider';
+import { useLocationTypes } from '../contexts/LocationTypesContext';
+import { formatFieldValue } from '../utils/fieldFormatting.jsx';
+
+const DetailRow = ({ label, children }) => (
+    <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">{label}</dt>
+        <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{children}</dd>
+    </div>
+);
+
 
 const LocationDetailSheet = ({ location, onClose }) => {
   const { user } = useAuth();
   const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const { getTypeById, loading: typesLoading } = useLocationTypes();
 
   if (!location) {
     return null;
   }
 
+  const locationType = typesLoading ? null : getTypeById(location.typeId);
+
   // 支援多圖和單圖格式
   const photoURLs = location.photoURLs || (location.photoURL ? [location.photoURL] : []);
+  
+  const sortedFields = locationType?.fieldSchema?.sort((a, b) => a.order - b.order) || [];
+  const fieldsToShow = sortedFields.filter(field => field.displayInDetail && location.dynamicFields?.[field.fieldId] != null);
 
   return (
     <>
@@ -22,61 +38,60 @@ const LocationDetailSheet = ({ location, onClose }) => {
       >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-2xl font-bold">{location.name}</h2>
-            <p className="text-gray-500">{location.address}</p>
+            <h2 className="text-2xl font-bold flex items-center">
+              {locationType && <span className="mr-3 text-3xl">{locationType.iconEmoji}</span>}
+              {location.name}
+            </h2>
+            <p className="text-gray-500 pl-10">{location.address}</p>
           </div>
           <button onClick={onClose} className="text-gray-500 text-3xl leading-none">&times;</button>
         </div>
 
-        {/* 使用圖片輪播元件顯示圖片 */}
         {photoURLs.length > 0 && (
-          <div className="mb-4">
-            <ImageSlider images={photoURLs} alt={location.name} />
-          </div>
+          <div className="mb-4 rounded-xl overflow-hidden"><ImageSlider images={photoURLs} alt={location.name} /></div>
         )}
 
-        <div>
-          <p className="mt-2 text-gray-700">{location.description}</p>
+        <div className="border-t">
+          <dl className="divide-y divide-gray-200">
+            <DetailRow label="基本描述">{location.description || '無'}</DetailRow>
+            
+            {/* Dynamic Fields Section */}
+            {typesLoading && <p className="text-sm text-gray-500 py-3">載入詳細資訊中...</p>}
+
+            {!typesLoading && locationType && fieldsToShow.map(field => (
+                <DetailRow key={field.fieldId} label={field.label}>
+                    {formatFieldValue(field, location.dynamicFields[field.fieldId])}
+                </DetailRow>
+            ))}
+            
+            {location.tags?.length > 0 && <DetailRow label="標籤"><div className="flex flex-wrap gap-2">{location.tags.map(tag => <span key={tag} className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{tag}</span>)}</div></DetailRow>}
+          </dl>
         </div>
 
-        {/* 登錄者資訊 */}
         {location.submitterInfo && (
-          <div className="my-4 p-3 bg-green-50 border border-green-200 rounded">
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
             <p className="text-xs text-gray-600 mb-1">登錄者</p>
             <p className="text-sm font-medium text-gray-900">
-              {location.submitterInfo.isWildernessPartner &&
-               location.submitterInfo.groupName &&
-               location.submitterInfo.naturalName
+              {location.submitterInfo.isWildernessPartner && location.submitterInfo.groupName && location.submitterInfo.naturalName
                 ? `${location.submitterInfo.groupName}-${location.submitterInfo.naturalName}`
                 : (location.submitterInfo.displayName || '未知使用者')}
             </p>
-            {location.submitterInfo.isWildernessPartner && (
-              <p className="text-xs text-green-600 mt-1">🌿 荒野夥伴</p>
-            )}
+            {location.submitterInfo.isWildernessPartner && <p className="text-xs text-green-600 mt-1">🌿 荒野夥伴</p>}
           </div>
         )}
 
         {user && (
           <div className="mt-6 border-t pt-4">
-            <button
-              onClick={() => setReportModalOpen(true)}
-              className="text-sm text-red-500 hover:underline"
-            >
-              回報此地點資訊有誤
-            </button>
+            <button onClick={() => setReportModalOpen(true)} className="text-sm text-red-500 hover:underline">回報此地點資訊有誤</button>
           </div>
         )}
       </div>
 
       {isReportModalOpen && (
-        <ReportModal
-          location={location}
-          onClose={() => setReportModalOpen(false)}
-        />
+        <ReportModal location={location} onClose={() => setReportModalOpen(false)} />
       )}
     </>
   );
 };
 
 export default memo(LocationDetailSheet);
-

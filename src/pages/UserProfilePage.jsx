@@ -147,6 +147,7 @@ const UserProfilePage = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="請輸入您的姓名或暱稱"
               disabled={submitting}
+              autocomplete="name"
             />
           </div>
 
@@ -180,6 +181,7 @@ const UserProfilePage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="例如：台南分會"
                   disabled={submitting}
+                  autocomplete="off"
                 />
               </div>
 
@@ -195,6 +197,7 @@ const UserProfilePage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="請輸入您的自然名"
                   disabled={submitting}
+                  autocomplete="off"
                 />
               </div>
             </div>

@@ -2,25 +2,29 @@
 
 本文件定義了 Firestore 資料庫的結構。
 
-*(詳細內容待補充)*
+## `location_types` (集合) [新增]
+定義地點的分類與動態欄位配置。
 
-## `users` (集合)
-使用者個人資料。
-
-- **文件 ID**: 使用者的 UID
-- **uid**: `string` - 使用者 UID（冗餘欄位，便於查詢）
-- **email**: `string` - 使用者 Email 地址
-- **displayName**: `string` - 使用者顯示名稱或暱稱
-- **isWildernessPartner**: `boolean` - 是否為荒野夥伴
-- **groupName**: `string` - 團名或分會（荒野夥伴適用，否則為空字串）
-- **naturalName**: `string` - 自然名（荒野夥伴適用，否則為空字串）
-- **createdAt**: `timestamp` - 資料建立時間
-- **updatedAt**: `timestamp` - 最後更新時間
-
-**存取規則**:
-- 使用者可讀取、建立、更新自己的資料
-- 管理員可讀取所有使用者資料
-- 禁止刪除使用者資料
+- **name**: `string` - 類型名稱 (例如: "團集會場地")
+- **description**: `string` - 類型描述
+- **icon**: `string` - 圖示 ID
+- **iconEmoji**: `string` - 用於地圖標記的 Emoji
+- **color**: `string` - 標記顏色 (HEX)
+- **order**: `number` - 排序順序
+- **isActive**: `boolean` - 是否啟用
+- **commonFields**: `object` - 共同欄位配置 (例如 `{ name: true, address: true }`)
+- **fieldSchema**: `array` of `object` - 動態欄位定義列表
+  - **fieldId**: `string` - 欄位唯一 ID
+  - **label**: `string` - 欄位標籤
+  - **type**: `string` - 欄位類型 (text, number, select, etc.)
+  - **required**: `boolean` - 是否必填
+  - **unit**: `string` - (選填) 單位，僅適用於 number 類型
+  - **validation**: `object` - 驗證規則
+  - **options**: `array` - 選項 (select/radio 等適用)
+- **createdAt**: `timestamp`
+- **updatedAt**: `timestamp`
+- **createdBy**: `string`
+- **updatedBy**: `string`
 
 ## `locations` (集合)
 公開顯示的綠活地點。
@@ -35,6 +39,8 @@
 - **status**: `string` - ('approved')
 - **submitterInfo**: `object` - 登錄者資訊（見下方說明）
 - **approvedAt**: `timestamp` - 核准時間
+- **typeId**: `string` - [新增] 關聯的地點類型 ID
+- **dynamicFields**: `map` - [新增] 動態欄位資料，鍵為 fieldId，值為對應內容
 
 **submitterInfo 物件結構**:
 - **uid**: `string` - 登錄者 UID
@@ -53,7 +59,27 @@
 - **submitterInfo**: `object` - 登錄者資訊（結構同 locations）
 - **photoURL**: `string` - 主要照片 URL
 - **photoURLs**: `array` of `string` - 所有照片 URL 陣列
+- **typeId**: `string` - [新增] 關聯的地點類型 ID
+- **dynamicFields**: `map` - [新增] 動態欄位資料
 - *其他欄位同 locations*
+
+## `users` (集合)
+使用者個人資料。
+
+- **文件 ID**: 使用者的 UID
+- **uid**: `string` - 使用者 UID（冗餘欄位，便於查詢）
+- **email**: `string` - 使用者 Email 地址
+- **displayName**: `string` - 使用者顯示名稱或暱稱
+- **isWildernessPartner**: `boolean` - 是否為荒野夥伴
+- **groupName**: `string` - 團名或分會（荒野夥伴適用，否則為空字串）
+- **naturalName**: `string` - 自然名（荒野夥伴適用，否則為空字串）
+- **createdAt**: `timestamp` - 資料建立時間
+- **updatedAt**: `timestamp` - 最後更新時間
+
+**存取規則**:
+- 使用者可讀取、建立、更新自己的資料
+- 管理員可讀取所有使用者資料
+- 禁止刪除使用者資料
 
 ## `tags` (集合)
 可用的綠活標籤。

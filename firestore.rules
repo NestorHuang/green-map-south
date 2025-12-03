@@ -1,52 +1,119 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions to check user roles from custom claims
-    function isSuperAdmin() {
-      return request.auth.token.role == 'superAdmin';
+    
+    // ==================== 輔助函數 ====================
+    
+    function isAuthenticated() {
+      return request.auth != null;
     }
-
+    
     function isAdmin() {
-      return request.auth.token.role == 'admin' || isSuperAdmin();
+      return isAuthenticated() && 
+             request.auth.token.role in ['admin', 'superAdmin'];
     }
-
-    // Locations and Tags can be read by anyone
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'superAdmin';
+    }
+    
+    // 驗證 typeId 是否存在
+    function typeExists(typeId) {
+      return exists(/databases/$(database)/documents/location_types/$(typeId));
+    }
+    
+    // 驗證 dynamicFields 符合 schema
+    function validDynamicFields(typeId, dynamicFields) {
+      // 注意：Firestore Rules 中無法進行複雜的 schema 驗證
+      // 詳細驗證應在 Cloud Functions 或前端進行
+      return dynamicFields is map;
+    }
+    
+    
+    // ==================== location_types 規則 ====================
+    
+    match /location_types/{typeId} {
+      // 所有人可讀取已啟用的類型
+      allow read: if resource.data.isActive == true || isAdmin();
+      
+      // 僅管理員可寫入
+      allow create: if isAdmin() &&
+        request.resource.data.keys().hasAll([
+          'name', 'icon', 'iconEmoji', 'color', 
+          'order', 'isActive', 'fieldSchema', 'commonFields'
+        ]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.iconEmoji is string &&
+        request.resource.data.color.matches('^#[0-9A-Fa-f]{6}$') &&
+        request.resource.data.fieldSchema is list;
+      
+      allow update: if isAdmin();
+      
+      allow delete: if isAdmin();
+      // 注意：刪除前應先檢查使用情況（由前端或 Cloud Function 處理）
+    }
+    
+    
+    // ==================== locations 規則 ====================
+    
     match /locations/{locationId} {
-      allow read: if true;
+      // 所有人可讀取已核准的地點，管理員可讀取所有
+      allow read: if resource.data.status == 'approved' || isAdmin();
+      
+      // 管理員可讀寫
       allow write: if isAdmin();
+      
+      // 額外驗證 typeId
+      allow create: if isAdmin() &&
+        typeExists(request.resource.data.typeId);
+      
+      allow update: if isAdmin() &&
+        typeExists(request.resource.data.typeId);
     }
+    
+    
+    // ==================== pending_locations 規則 ====================
+    
+    match /pending_locations/{locationId} {
+      // 僅管理員可讀取
+      allow read: if isAdmin();
+      
+      // 登入使用者可建立
+      allow create: if isAuthenticated() &&
+        request.resource.data.submitterInfo.uid == request.auth.uid &&
+        typeExists(request.resource.data.typeId) &&
+        validDynamicFields(
+          request.resource.data.typeId,
+          request.resource.data.dynamicFields
+        );
+      
+      // 僅管理員可更新和刪除
+      allow update, delete: if isAdmin();
+    }
+    
+    
+    // ==================== 其他集合規則 ====================
+    
     match /tags/{tagId} {
       allow read: if true;
       allow write: if isAdmin();
     }
-
-    // Pending locations can be created by logged-in users, but only read/deleted by admins
-    match /pending_locations/{pendingId} {
-      allow read, delete: if isAdmin();
-      allow create: if request.auth != null;
-      allow update: if false; // Nobody can update a pending request
+    
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
-
-    // Reports can be created by logged-in users, but only read/updated by admins
+    
     match /reports/{reportId} {
-      allow read, update: if isAdmin();
-      allow create: if request.auth != null;
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
-
-    // Admins collection can be read by any admin, but only written to by super admins.
-    match /admins/{userId} {
+    
+    match /admins/{adminId} {
       allow read: if isAdmin();
       allow write: if isSuperAdmin();
-    }
-
-    // Users collection: users can read/write their own profile, admins can read all profiles
-    match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false; // Nobody can delete user profiles
     }
   }
 }

@@ -22,6 +22,14 @@ const ManageLocationsPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Debug: Check user claims
+    if (auth.currentUser) {
+      auth.currentUser.getIdTokenResult().then(idTokenResult => {
+        console.log("Current User Role:", idTokenResult.claims.role);
+        console.log("Full Claims:", idTokenResult.claims);
+      });
+    }
+
     fetchLocations();
     fetchTags();
   }, []);
@@ -29,15 +37,20 @@ const ManageLocationsPage = () => {
   const fetchLocations = async () => {
     setLoading(true);
     try {
+      console.log("Fetching locations...");
       const querySnapshot = await getDocs(collection(db, 'locations'));
+      console.log("Locations fetched, count:", querySnapshot.size);
       const locationsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setLocations(locationsData);
     } catch (err) {
-      setError('無法載入地點列表');
-      console.error(err);
+      setError(`無法載入地點列表: ${err.message}`);
+      console.error("Detailed Fetch Error:", err);
+      if (err.code === 'permission-denied') {
+        console.error("Permission denied. Check Firestore rules and user claims.");
+      }
     } finally {
       setLoading(false);
     }

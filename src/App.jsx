@@ -12,6 +12,7 @@ import ReportsPage from './pages/ReportsPage';
 import ManageAdminsPage from './pages/ManageAdminsPage';
 import ManageLocationsPage from './pages/ManageLocationsPage';
 import ManageTagsPage from './pages/ManageTagsPage';
+import ManageLocationTypesPage from './pages/ManageLocationTypesPage';
 
 // Route Protection
 import ProtectedRoute from './components/ProtectedRoute';
@@ -70,6 +71,7 @@ function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="locations" element={<ManageLocationsPage />} />
         <Route path="tags" element={<ManageTagsPage />} />
+        <Route path="types" element={<ManageLocationTypesPage />} />
         <Route
           path="manage-admins"
           element={
