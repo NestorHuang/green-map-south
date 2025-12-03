@@ -1,4 +1,6 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import ReportModal from './ReportModal';
 import ImageSlider from './ImageSlider';
@@ -16,13 +18,45 @@ const DetailRow = ({ label, children }) => (
 const LocationDetailSheet = ({ location, onClose }) => {
   const { user } = useAuth();
   const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const [tags, setTags] = useState([]);
   const { getTypeById, loading: typesLoading } = useLocationTypes();
+
+  // Fetch tags
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchTags = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'tags'));
+        const tagsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (isMounted) {
+          setTags(tagsData);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Error fetching tags:", error);
+        }
+      }
+    };
+
+    fetchTags();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (!location) {
     return null;
   }
 
   const locationType = typesLoading ? null : getTypeById(location.typeId);
+
+  // Convert tag IDs to tag objects with names
+  const locationTags = location.tags?.map(tagId => {
+    const tag = tags.find(t => t.id === tagId);
+    return tag || { id: tagId, name: tagId }; // Fallback to ID if tag not found
+  }) || [];
 
   // 支援多圖和單圖格式
   const photoURLs = location.photoURLs || (location.photoURL ? [location.photoURL] : []);
@@ -64,7 +98,7 @@ const LocationDetailSheet = ({ location, onClose }) => {
                 </DetailRow>
             ))}
             
-            {location.tags?.length > 0 && <DetailRow label="標籤"><div className="flex flex-wrap gap-2">{location.tags.map(tag => <span key={tag} className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{tag}</span>)}</div></DetailRow>}
+            {locationTags?.length > 0 && <DetailRow label="標籤"><div className="flex flex-wrap gap-2">{locationTags.map(tag => <span key={tag.id} className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{tag.name}</span>)}</div></DetailRow>}
           </dl>
         </div>
 

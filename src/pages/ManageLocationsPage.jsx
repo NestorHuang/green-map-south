@@ -2,27 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, GeoPoint, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
-import ImageSlider from '../components/ImageSlider';
+import { useLocationTypes } from '../contexts/LocationTypesContext';
+import LocationFormContent from '../components/LocationFormContent';
+import TypeSelector from '../components/TypeSelector';
 
 const ManageLocationsPage = () => {
+  const { types: allLocationTypes, loading: typesLoading, getTypeById } = useLocationTypes();
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocationFormContentOpen, setIsLocationFormContentOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    description: '',
-    selectedTags: []
-  });
-  const [imageFiles, setImageFiles] = useState([]);
-  const [existingImages, setExistingImages] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedTypeForForm, setSelectedTypeForForm] = useState(null);
 
   useEffect(() => {
-    // Debug: Check user claims
     if (auth.currentUser) {
       auth.currentUser.getIdTokenResult().then(idTokenResult => {
         console.log("Current User Role:", idTokenResult.claims.role);
@@ -71,159 +66,66 @@ const ManageLocationsPage = () => {
 
   const handleOpenModal = (location = null) => {
     if (location) {
-      // 編輯模式
       setEditingLocation(location);
-      setFormData({
-        name: location.name,
-        address: location.address,
-        description: location.description || '',
-        selectedTags: location.tags || []
-      });
-      // 處理現有圖片 - 支援舊的單圖和新的多圖格式
-      if (location.photoURLs && Array.isArray(location.photoURLs)) {
-        setExistingImages(location.photoURLs);
-      } else if (location.photoURL) {
-        setExistingImages([location.photoURL]);
-      } else {
-        setExistingImages([]);
+      const type = getTypeById(location.typeId);
+      if (!type) {
+        setError('Error: Location type not found for editing.');
+        return;
       }
+      setSelectedTypeForForm(type);
+      setIsLocationFormContentOpen(true);
     } else {
-      // 新增模式
       setEditingLocation(null);
-      setFormData({
-        name: '',
-        address: '',
-        description: '',
-        selectedTags: []
-      });
-      setExistingImages([]);
+      setSelectedTypeForForm(null);
+      setIsLocationFormContentOpen(false);
     }
-    setImageFiles([]);
     setIsModalOpen(true);
+    setError('');
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setIsLocationFormContentOpen(false);
     setEditingLocation(null);
-    setFormData({
-      name: '',
-      address: '',
-      description: '',
-      selectedTags: []
-    });
-    setImageFiles([]);
-    setExistingImages([]);
+    setSelectedTypeForForm(null);
     setError('');
   };
 
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const handleSelectType = (type) => {
+    setSelectedTypeForForm(type);
+    setIsLocationFormContentOpen(true);
   };
 
-  const handleTagChange = (tagId) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedTags: prev.selectedTags.includes(tagId)
-        ? prev.selectedTags.filter(id => id !== tagId)
-        : [...prev.selectedTags, tagId]
-    }));
-  };
-
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length + existingImages.length > 10) {
-      alert('最多只能上傳 10 張圖片');
-      return;
-    }
-    setImageFiles(files);
-  };
-
-  const handleRemoveExistingImage = (index) => {
-    setExistingImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.name || !formData.address) {
-      setError('請填寫地點名稱和地址');
-      return;
-    }
-
-    if (existingImages.length === 0 && imageFiles.length === 0) {
-      setError('請至少上傳一張圖片');
-      return;
-    }
-
-    setSubmitting(true);
-    setError('');
-
+  const handleSaveLocationInAdmin = async (locationData, isEditing) => {
+    setLoading(true);
     try {
-      // 地理編碼
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      const geoResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(formData.address)}&key=${apiKey}`
-      );
-      const geoData = await geoResponse.json();
-
-      if (geoData.status !== 'OK') {
-        throw new Error('無法找到該地址的座標，請檢查地址是否正確');
-      }
-
-      const { lat, lng } = geoData.results[0].geometry.location;
-      const position = new GeoPoint(lat, lng);
-
-      // 上傳新圖片
-      const uploadedURLs = [];
-      for (const file of imageFiles) {
-        const imageRef = ref(storage, `location_photos/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(imageRef, file);
-        const photoURL = await getDownloadURL(snapshot.ref);
-        uploadedURLs.push(photoURL);
-      }
-
-      // 合併現有圖片和新上傳的圖片
-      const allPhotoURLs = [...existingImages, ...uploadedURLs];
-
-      const locationData = {
-        name: formData.name,
-        address: formData.address,
-        description: formData.description,
-        tags: formData.selectedTags,
-        position: position,
-        photoURLs: allPhotoURLs,
-        // 保留第一張作為主圖（向下兼容）
-        photoURL: allPhotoURLs[0]
+      const finalLocationData = {
+        ...locationData,
+        createdBy: auth.currentUser?.uid || 'admin',
+        updatedBy: auth.currentUser?.uid || 'admin',
+        status: 'approved',
       };
 
-      if (editingLocation) {
-        // 更新現有地點
+      if (isEditing && editingLocation?.id) {
         await updateDoc(doc(db, 'locations', editingLocation.id), {
-          ...locationData,
-          updatedAt: Timestamp.now()
+          ...finalLocationData,
+          updatedAt: Timestamp.now(),
         });
-        alert('地點已成功更新');
+        alert('地點已成功更新！');
       } else {
-        // 新增地點
         await addDoc(collection(db, 'locations'), {
-          ...locationData,
-          createdBy: auth.currentUser?.uid || 'admin',
+          ...finalLocationData,
           createdAt: Timestamp.now(),
-          status: 'approved'
         });
-        alert('地點已成功新增');
+        alert('地點已成功新增！');
       }
-
       handleCloseModal();
       await fetchLocations();
     } catch (err) {
-      setError(err.message);
-      console.error(err);
+      setError(`儲存地點失敗: ${err.message}`);
+      console.error("Error saving location in admin:", err);
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -233,22 +135,18 @@ const ManageLocationsPage = () => {
     }
 
     try {
-      // 刪除所有圖片
       const photoURLs = location.photoURLs || (location.photoURL ? [location.photoURL] : []);
 
       for (const photoURL of photoURLs) {
         try {
-          // 從 URL 解析出 Storage 路徑
           const photoPath = decodeURIComponent(photoURL.split('/o/')[1].split('?')[0]);
           const photoRef = ref(storage, photoPath);
           await deleteObject(photoRef);
         } catch (err) {
           console.error('Error deleting image:', err);
-          // 繼續刪除其他圖片，不中斷流程
         }
       }
 
-      // 刪除 Firestore 文件
       await deleteDoc(doc(db, 'locations', location.id));
 
       alert('地點已成功刪除');
@@ -381,155 +279,38 @@ const ManageLocationsPage = () => {
       {/* 新增/編輯地點 Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">
-                {editingLocation ? '編輯地點' : '新增地點'}
-              </h2>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* 名稱 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    地點名稱 *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-
-                {/* 地址 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    地址 *
-                  </label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-
-                {/* 描述 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    描述
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                {/* 標籤 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    標籤
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map(tag => (
-                      <label
-                        key={tag.id}
-                        className="inline-flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.selectedTags.includes(tag.id)}
-                          onChange={() => handleTagChange(tag.id)}
-                          className="mr-2"
-                        />
-                        <span className="text-sm">{tag.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 現有圖片 */}
-                {existingImages.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      現有圖片
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {existingImages.map((url, index) => (
-                        <div key={index} className="relative">
-                          <img
-                            src={url}
-                            alt={`圖片 ${index + 1}`}
-                            className="w-full h-32 object-cover rounded"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExistingImage(index)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 上傳新圖片 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {existingImages.length > 0 ? '新增圖片' : '圖片 *'}
-                    <span className="text-xs text-gray-500 ml-2">
-                      (最多 10 張，目前已有 {existingImages.length} 張)
-                    </span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  {imageFiles.length > 0 && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      已選擇 {imageFiles.length} 張新圖片
-                    </p>
-                  )}
-                </div>
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
-                    {error}
-                  </div>
-                )}
-
-                {/* 按鈕 */}
-                <div className="flex justify-end gap-2 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                    disabled={submitting}
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            {!isLocationFormContentOpen ? (
+              <div className="p-6">
+                <h2 className="text-2xl font-bold mb-8 text-center text-gray-800">選擇地點類型</h2>
+                <TypeSelector onSelectType={handleSelectType} />
+                <div className="flex justify-end mt-4">
+                  <button 
+                    type="button" 
+                    onClick={handleCloseModal} 
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                   >
                     取消
                   </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
-                    disabled={submitting}
-                  >
-                    {submitting ? '處理中...' : editingLocation ? '更新' : '新增'}
-                  </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            ) : (
+              selectedTypeForForm && (
+                <LocationFormContent
+                  selectedType={selectedTypeForForm}
+                  initialData={editingLocation}
+                  onSave={handleSaveLocationInAdmin}
+                  onCancel={() => {
+                    if (!editingLocation) {
+                      setIsLocationFormContentOpen(false);
+                      setSelectedTypeForForm(null);
+                    } else {
+                      handleCloseModal();
+                    }
+                  }}
+                />
+              )
+            )}
           </div>
         </div>
       )}
