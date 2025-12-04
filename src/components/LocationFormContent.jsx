@@ -13,6 +13,9 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   const { user, userProfile } = useAuth();
   const { activeTypes, loading: typesLoading } = useLocationTypes(); // Might not need activeTypes here
 
+  const isEditing = !!initialData?.id;
+  const storageKey = `locationForm_${selectedType.id}_draft`;
+
   // Form state
   const [commonFields, setCommonFields] = useState({
     name: initialData?.name || '',
@@ -24,13 +27,13 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   const [selectedTags, setSelectedTags] = useState(initialData?.tags || []);
   const [imageFiles, setImageFiles] = useState([]);
   const [existingImages, setExistingImages] = useState(initialData?.photoURLs || []); // For existing locations
+  const [selectedCoverIndex, setSelectedCoverIndex] = useState(0); // Index of cover photo in combined array
   const [formErrors, setFormErrors] = useState({});
-  
+  const [hasDraft, setHasDraft] = useState(false);
+
   // Submission state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const isEditing = !!initialData?.id;
 
   useEffect(() => {
     const fetchTags = async () => {
@@ -39,6 +42,69 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     };
     fetchTags();
   }, []);
+
+  // Load draft from localStorage on mount (only for new locations, not editing)
+  useEffect(() => {
+    if (!isEditing) {
+      const savedDraft = localStorage.getItem(storageKey);
+      if (savedDraft) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          setHasDraft(true);
+          // Don't auto-load, let user decide
+        } catch (e) {
+          console.error('Failed to parse draft:', e);
+          localStorage.removeItem(storageKey);
+        }
+      }
+    }
+  }, [isEditing, storageKey]);
+
+  // Auto-save draft to localStorage (debounced)
+  useEffect(() => {
+    if (isEditing) return; // Don't save drafts when editing existing location
+
+    const timeoutId = setTimeout(() => {
+      // Only save if there's some data entered
+      if (commonFields.name || commonFields.address || commonFields.description ||
+          Object.keys(dynamicFields).length > 0 || selectedTags.length > 0) {
+        const draft = {
+          commonFields,
+          dynamicFields,
+          selectedTags,
+          selectedCoverIndex,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(storageKey, JSON.stringify(draft));
+      }
+    }, 1000); // Save after 1 second of inactivity
+
+    return () => clearTimeout(timeoutId);
+  }, [commonFields, dynamicFields, selectedTags, selectedCoverIndex, isEditing, storageKey]);
+
+  const loadDraft = () => {
+    const savedDraft = localStorage.getItem(storageKey);
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setCommonFields(draft.commonFields || commonFields);
+        setDynamicFields(draft.dynamicFields || {});
+        setSelectedTags(draft.selectedTags || []);
+        setSelectedCoverIndex(draft.selectedCoverIndex || 0);
+        setHasDraft(false);
+        alert('已恢復先前的填寫內容');
+      } catch (e) {
+        console.error('Failed to load draft:', e);
+        alert('載入暫存資料失敗');
+      }
+    }
+  };
+
+  const clearDraft = () => {
+    localStorage.removeItem(storageKey);
+    setHasDraft(false);
+    alert('已清除暫存資料');
+  };
 
   const handleCommonInputChange = (e) => {
     setCommonFields({ ...commonFields, [e.target.name]: e.target.value });
@@ -63,15 +129,68 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    if (files.length + existingImages.length > 10) {
+    const totalImages = existingImages.length + imageFiles.length + files.length;
+
+    if (totalImages > 10) {
       alert('最多只能上傳 10 張圖片');
       return;
     }
-    setImageFiles(files);
+
+    // Append new files instead of replacing
+    setImageFiles(prev => [...prev, ...files]);
+  };
+
+  const handleRemoveNewImage = (index) => {
+    setImageFiles(prev => {
+      const newFiles = prev.filter((_, i) => i !== index);
+      // Adjust cover index if needed
+      const removedIndex = existingImages.length + index;
+      if (selectedCoverIndex === removedIndex) {
+        setSelectedCoverIndex(0);
+      } else if (selectedCoverIndex > removedIndex) {
+        setSelectedCoverIndex(prev => prev - 1);
+      }
+      return newFiles;
+    });
   };
 
   const handleRemoveExistingImage = (index) => {
-    setExistingImages(prev => prev.filter((_, i) => i !== index));
+    setExistingImages(prev => {
+      const newImages = prev.filter((_, i) => i !== index);
+      // Adjust cover index if needed
+      if (selectedCoverIndex === index) {
+        setSelectedCoverIndex(0);
+      } else if (selectedCoverIndex > index) {
+        setSelectedCoverIndex(prev => prev - 1);
+      }
+      return newImages;
+    });
+  };
+
+  const handleSelectCover = (index) => {
+    setSelectedCoverIndex(index);
+  };
+
+  // Get photos in display order (cover photo first)
+  const getOrderedPhotos = () => {
+    const allPhotos = [
+      ...existingImages.map((url, idx) => ({ url, type: 'existing', originalIndex: idx })),
+      ...imageFiles.map((file, idx) => ({
+        url: URL.createObjectURL(file),
+        file,
+        type: 'new',
+        originalIndex: existingImages.length + idx
+      }))
+    ];
+
+    // Move selected cover to first position
+    if (selectedCoverIndex >= 0 && selectedCoverIndex < allPhotos.length) {
+      const coverPhoto = allPhotos[selectedCoverIndex];
+      const otherPhotos = allPhotos.filter((_, idx) => idx !== selectedCoverIndex);
+      return [coverPhoto, ...otherPhotos];
+    }
+
+    return allPhotos;
   };
 
   const handleSubmit = async (e) => {
@@ -80,8 +199,16 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     setFormErrors({});
 
     // Basic validation
-    if (!commonFields.name || !commonFields.address || (existingImages.length + imageFiles.length === 0)) {
-      setError('請填寫地點名稱、地址並至少上傳一張照片。');
+    const totalPhotos = existingImages.length + imageFiles.length;
+
+    if (!commonFields.name || !commonFields.address) {
+      setError('請填寫地點名稱和地址。');
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    if (totalPhotos === 0) {
+      setError(isEditing ? '請保留至少一張照片或上傳新照片。' : '請至少上傳一張照片。');
       window.scrollTo(0, 0);
       return;
     }
@@ -115,12 +242,22 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
       );
       const allPhotoURLs = [...existingImages, ...uploadedPhotoURLs];
 
+      // Reorder photos to put selected cover first
+      let orderedPhotoURLs = [...allPhotoURLs];
+      if (selectedCoverIndex >= 0 && selectedCoverIndex < allPhotoURLs.length) {
+        const coverPhoto = allPhotoURLs[selectedCoverIndex];
+        orderedPhotoURLs = [
+          coverPhoto,
+          ...allPhotoURLs.filter((_, idx) => idx !== selectedCoverIndex)
+        ];
+      }
+
       const locationData = {
         ...commonFields,
         tags: selectedTags,
         position: new GeoPoint(lat, lng),
-        photoURLs: allPhotoURLs,
-        photoURL: allPhotoURLs[0],
+        photoURLs: orderedPhotoURLs, // Save with cover photo first
+        photoURL: orderedPhotoURLs[0], // First photo is always the cover
         submitterInfo: {
           uid: user.uid,
           email: user.email,
@@ -136,6 +273,11 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
       // Pass to onSave prop
       await onSave(locationData, isEditing);
 
+      // Clear draft after successful submission
+      if (!isEditing) {
+        localStorage.removeItem(storageKey);
+      }
+
     } catch (err) {
       setError(err.message);
       console.error(err);
@@ -145,13 +287,67 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   };
 
   return (
-    <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
+    <>
+      {/* Draft notification modal */}
+      {hasDraft && !isEditing && (
+        <div className="fixed inset-0 z-[3000] overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* Overlay */}
+            <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+              {/* Icon */}
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+                <svg className="h-10 w-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+
+              {/* Title and message */}
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">發現未完成的填寫內容</h3>
+                <p className="text-sm text-gray-600">
+                  我們發現您之前有填寫到一半的資料。
+                  <br />
+                  您想要繼續填寫嗎？
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={loadDraft}
+                  className="w-full px-4 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  恢復並繼續填寫
+                </button>
+                <button
+                  onClick={() => setHasDraft(false)}
+                  className="w-full px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  不恢復，重新填寫
+                </button>
+                <button
+                  onClick={clearDraft}
+                  className="w-full px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  清除暫存資料
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
+
       {/* Header Section */}
       <div className="bg-indigo-600 px-6 py-8 sm:p-10 text-white relative overflow-hidden">
         <div className="relative z-10">
           {onCancel && (
-            <button 
-              onClick={onCancel} 
+            <button
+              onClick={onCancel}
               className="mb-4 flex items-center text-indigo-100 hover:text-white transition-colors text-sm font-medium"
             >
               <span className="mr-1">←</span> 返回
@@ -263,7 +459,74 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
 
             {/* Photos */}
             <div>
-              <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-2">照片 <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(最多 10 張)</span></label>
+              <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-2">
+                照片 <span className="text-red-500">*</span>
+                <span className="text-xs text-gray-500 font-normal">
+                  {isEditing
+                    ? ' (已有照片可保留，可繼續上傳，最多 10 張，點擊照片設為代表圖)'
+                    : ' (最多 10 張，點擊照片設為代表圖)'}
+                </span>
+              </label>
+
+              {/* Photo Preview Grid */}
+              {(existingImages.length > 0 || imageFiles.length > 0) && (
+                <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {getOrderedPhotos().map((photo, displayIndex) => {
+                    const isCover = photo.originalIndex === selectedCoverIndex;
+                    const isNew = photo.type === 'new';
+
+                    return (
+                      <div
+                        key={`${photo.type}-${photo.originalIndex}`}
+                        className={`relative group aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                          isCover
+                            ? 'border-indigo-500 ring-2 ring-indigo-300 shadow-lg'
+                            : 'border-gray-200 hover:border-indigo-300'
+                        }`}
+                        onClick={() => handleSelectCover(photo.originalIndex)}
+                      >
+                        <img src={photo.url} alt={`照片 ${displayIndex + 1}`} className="w-full h-full object-cover" />
+
+                        {/* Cover badge - always show on first photo */}
+                        {displayIndex === 0 && (
+                          <div className="absolute top-2 left-2 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            代表圖
+                          </div>
+                        )}
+
+                        {/* New upload badge */}
+                        {isNew && (
+                          <div className="absolute bottom-2 left-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                            新上傳
+                          </div>
+                        )}
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isNew) {
+                              const newImageIndex = photo.originalIndex - existingImages.length;
+                              handleRemoveNewImage(newImageIndex);
+                            } else {
+                              handleRemoveExistingImage(photo.originalIndex);
+                            }
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Upload Area */}
               <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors relative">
                 <div className="space-y-1 text-center">
                   <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
@@ -271,43 +534,33 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
                   </svg>
                   <div className="flex text-sm text-gray-600 justify-center">
                     <label htmlFor="photo" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                      <span>上傳照片</span>
-                      <input id="photo" name="photo" type="file" required accept="image/*" multiple onChange={handleFileChange} className="sr-only" />
+                      <span>
+                        {isEditing && existingImages.length > 0
+                          ? '上傳更多照片'
+                          : existingImages.length + imageFiles.length === 0
+                          ? '上傳照片'
+                          : '繼續上傳更多照片'}
+                      </span>
+                      <input
+                        id="photo"
+                        name="photo"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileChange}
+                        className="sr-only"
+                      />
                     </label>
                     <p className="pl-1">或拖放至此</p>
                   </div>
                   <p className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 10MB
+                    PNG, JPG, GIF 最多 10MB ({existingImages.length + imageFiles.length}/10)
+                    {isEditing && existingImages.length > 0 && imageFiles.length === 0 && (
+                      <span className="block mt-1 text-green-600">✓ 已有 {existingImages.length} 張照片</span>
+                    )}
                   </p>
-                  {imageFiles.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                      {imageFiles.map((file, idx) => (
-                        <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {file.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
-              
-              {existingImages.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                  <p className="text-sm font-semibold text-gray-700 w-full">現有圖片:</p>
-                  {existingImages.map((url, index) => (
-                    <div key={index} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200">
-                      <img src={url} alt={`現有圖片 ${index + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExistingImage(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 text-xs font-bold"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
@@ -371,6 +624,7 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
         </form>
       </div>
     </div>
+    </>
   );
 };
 
