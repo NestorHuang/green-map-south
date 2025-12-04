@@ -1,9 +1,9 @@
 # 部署摘要報告
 
 ## 部署時間
-2025-12-04
+2025-12-04 (第二次部署)
 
-## 部署狀態：✅ 部分成功 (Hosting & Firestore)
+## 部署狀態：✅ 成功 (Hosting only)
 
 ---
 
@@ -14,42 +14,33 @@
 - **網址**：https://green-map-7c8e1.web.app
 - **建置大小**：
   - HTML: 0.46 kB
-  - CSS: 29.59 kB (gzip: 5.87 kB)
-  - JavaScript: 898.02 kB (gzip: 257.92 kB)
+  - CSS: 29.94 kB (gzip: 5.91 kB)
+  - JavaScript: 898.76 kB (gzip: 258.13 kB)
 - **更新內容**：
-  - 重構地點管理與註冊功能，提取可重用組件 (`LocationFormContent`, `TypeSelector`)
-  - 修正地點詳情頁面 (`LocationDetailSheet`) 顯示標籤名稱的問題
-  - 更新管理員頁面 (`ManageLocationsPage`) 與註冊頁面 (`RegisterLocationPage`)
+  - 修正前端路由權限：`ManageLocationTypesPage` 現在僅限超級管理員存取。
+  - 改進 `TypeSelector` 組件：增加錯誤處理和無資料時的提示。
+  - 同步部署摘要與程式碼變更。
 
 ### 2. ✅ Firestore Database Rules
-- **狀態**：已成功部署 (最新版)
-- **功能**：
-  - 支援 role-based 權限控制
-  - `isSuperAdmin()` 函數
-  - `isAdmin()` 函數
-  - 管理員集合讀寫權限控制
+- **狀態**：未變更 (前次已部署成功)
+- **版本**：最新版
 
 ### 3. ⚠️ Cloud Functions
-- **狀態**：部署失敗 (Timeout) - *不影響本次前端更新*
-- **說明**：Functions 初始化超時，可能是暫時性環境問題。既有的 Functions 仍可正常運作。
-- **Function 列表** (既有)：
-  - `syncAdminStatus` (v2)
-  - `getAdminStatus`
-  - `syncAdminClaim`
-  - `addAdminByEmail`
+- **狀態**：未變更 (保留現有版本)
+- **說明**：本次僅更新前端，未重新部署 Functions。
 
 ### 4. ✅ Storage Rules
-- **狀態**：已部署（之前）
-- **功能**：照片上傳權限控制
+- **狀態**：未變更
 
 ---
 
 ## 重要提醒
 
-### 🔑 測試新功能
-1. **地點詳情**：檢查地點詳情頁面是否正確顯示標籤名稱（而非 ID）。
-2. **管理地點**：在後台嘗試編輯地點，確認新的表單組件運作正常。
-3. **註冊地點**：嘗試註冊新地點，確認流程順暢。
+### 🔑 測試重點
+1. **權限測試**：
+   - 使用一般管理員帳號登入，確認無法訪問 `/admin/types` 或看到相關側邊欄連結。
+   - 使用超級管理員帳號登入，確認可以正常訪問。
+2. **類型選擇**：在註冊頁面或管理頁面，確認 `TypeSelector` 在載入中或發生錯誤時有適當的顯示。
 
 ---
 

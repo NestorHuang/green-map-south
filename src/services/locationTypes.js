@@ -172,3 +172,44 @@ export async function deleteType(typeId) {
   }
   await deleteDoc(doc(db, 'location_types', typeId));
 }
+
+/**
+ * Deletes a location type and all associated locations (approved and pending).
+ * This is a forceful delete that removes all related data.
+ * @param {string} typeId - The ID of the location type to delete.
+ * @returns {Promise<Object>} A promise that resolves to an object with deletion counts.
+ */
+export async function deleteTypeWithLocations(typeId) {
+  const batch = writeBatch(db);
+
+  // Get all locations using this type
+  const locationsQuery = query(collection(db, 'locations'), where('typeId', '==', typeId));
+  const pendingLocationsQuery = query(collection(db, 'pending_locations'), where('typeId', '==', typeId));
+
+  const [approvedSnapshot, pendingSnapshot] = await Promise.all([
+    getDocs(locationsQuery),
+    getDocs(pendingLocationsQuery)
+  ]);
+
+  // Delete all approved locations
+  approvedSnapshot.docs.forEach((docSnapshot) => {
+    batch.delete(docSnapshot.ref);
+  });
+
+  // Delete all pending locations
+  pendingSnapshot.docs.forEach((docSnapshot) => {
+    batch.delete(docSnapshot.ref);
+  });
+
+  // Delete the type itself
+  batch.delete(doc(db, 'location_types', typeId));
+
+  // Commit all deletions
+  await batch.commit();
+
+  return {
+    deletedApprovedLocations: approvedSnapshot.size,
+    deletedPendingLocations: pendingSnapshot.size,
+    totalDeleted: approvedSnapshot.size + pendingSnapshot.size
+  };
+}

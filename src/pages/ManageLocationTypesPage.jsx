@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 import TypeModal from '../components/Admin/LocationTypes/TypeModal';
-import { createType, updateType } from '../services/locationTypes';
+import DeleteTypeModal from '../components/Admin/LocationTypes/DeleteTypeModal';
+import { createType, updateType, deleteTypeWithLocations } from '../services/locationTypes';
 
 const ManageLocationTypesPage = () => {
   const { types, loading, error, refreshTypes } = useLocationTypes();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingType, setEditingType] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingType, setDeletingType] = useState(null);
 
   const handleAddNew = () => {
     setEditingType(null);
@@ -27,16 +30,45 @@ const ManageLocationTypesPage = () => {
     try {
       if (editingType) {
         await updateType(editingType.id, formData);
-        alert('Location type updated successfully!');
+        alert('地點類型已成功更新！');
       } else {
         await createType(formData);
-        alert('Location type created successfully!');
+        alert('地點類型已成功建立！');
       }
       handleCloseModal();
       await refreshTypes();
     } catch (err) {
       console.error('Failed to save location type:', err);
-      alert(`Error: ${err.message}`);
+      alert(`錯誤: ${err.message}`);
+    }
+  };
+
+  const handleDelete = (type) => {
+    setDeletingType(type);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setDeletingType(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingType) return;
+
+    try {
+      const result = await deleteTypeWithLocations(deletingType.id);
+
+      if (result.totalDeleted > 0) {
+        alert(`已成功刪除地點類型「${deletingType.name}」以及 ${result.totalDeleted} 個相關地點（已核准: ${result.deletedApprovedLocations}，待審核: ${result.deletedPendingLocations}）`);
+      } else {
+        alert(`已成功刪除地點類型「${deletingType.name}」`);
+      }
+
+      await refreshTypes();
+    } catch (err) {
+      console.error('Failed to delete location type:', err);
+      alert(`刪除失敗: ${err.message}`);
     }
   };
 
@@ -130,8 +162,11 @@ const ManageLocationTypesPage = () => {
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{type.fieldSchema?.length || 0}</td>
                     <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                      <button onClick={() => handleEdit(type)} className="text-indigo-600 hover:text-indigo-900">
+                      <button onClick={() => handleEdit(type)} className="text-indigo-600 hover:text-indigo-900 mr-4">
                         編輯
+                      </button>
+                      <button onClick={() => handleDelete(type)} className="text-red-600 hover:text-red-900">
+                        刪除
                       </button>
                     </td>
                   </tr>
@@ -153,6 +188,12 @@ const ManageLocationTypesPage = () => {
         onSave={handleSave}
         typeData={editingType}
        />
+      <DeleteTypeModal
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        typeData={deletingType}
+      />
     </div>
   );
 };
