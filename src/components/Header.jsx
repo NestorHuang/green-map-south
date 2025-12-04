@@ -52,7 +52,7 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       style={{ zIndex: 1000 }}
     >
       <div className="flex justify-between items-center mb-2">
-        <h1 className="text-xl font-bold text-green-700">南區綠活圖</h1>
+        <h1 className="text-xl font-bold text-green-700">親子團綠活地圖</h1>
         
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-4">
