@@ -5,11 +5,13 @@ import { auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
 import PlacesAutocomplete from './PlacesAutocomplete';
+import RegisterLocationModal from './RegisterLocationModal';
 
 const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
   const { user, userProfile, loading: userLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
@@ -33,7 +35,12 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       {!adminLoading && isAdmin && (
         <Link to="/admin" className="text-sm font-semibold text-red-600 hover:underline">管理後台</Link>
       )}
-      <Link to="/register" className="text-sm text-green-600 hover:underline">登錄地點</Link>
+      <button
+        onClick={() => setIsRegisterModalOpen(true)}
+        className="text-sm text-green-600 hover:underline"
+      >
+        登錄地點
+      </button>
       <Link to="/profile" className="text-sm text-blue-600 hover:underline">個人資料</Link>
       <button onClick={handleSignOut} className="text-sm text-gray-600 hover:underline">登出</button>
     </div>
@@ -119,6 +126,12 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
           ))}
         </div>
       </div>
+
+      {/* Register Location Modal */}
+      <RegisterLocationModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+      />
     </div>
   );
 };

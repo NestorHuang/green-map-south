@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom'; // Keep if navigate is needed, otherwise remove
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, addDoc, GeoPoint, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 import DynamicForm from './DynamicForm/DynamicForm';
+import PlacesAutocompleteInput from './PlacesAutocompleteInput';
 import { validateDynamicFields } from '../utils/fieldValidation';
 
 const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) => {
@@ -42,7 +43,16 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   const handleCommonInputChange = (e) => {
     setCommonFields({ ...commonFields, [e.target.name]: e.target.value });
   };
-  
+
+  const handlePlaceSelect = (placeData) => {
+    // 當用戶從 Google Places 選擇地點時，自動填充名稱和地址
+    setCommonFields({
+      ...commonFields,
+      name: placeData.name || commonFields.name,
+      address: placeData.address || commonFields.address,
+    });
+  };
+
   const handleDynamicInputChange = (updatedValues) => {
     setDynamicFields(updatedValues);
   };
@@ -177,16 +187,15 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
 
             <div className="grid grid-cols-1 gap-y-6 gap-x-4">
               <div className="col-span-1">
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">地點名稱 <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  id="name" 
-                  required 
-                  value={commonFields.name} 
-                  onChange={handleCommonInputChange} 
-                  autoComplete="name"
-                  placeholder="例如：綠色生活咖啡館"
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  地點名稱 <span className="text-red-500">*</span>
+                  <span className="text-xs text-gray-500 ml-2">(可搜尋並自動填入地點資訊)</span>
+                </label>
+                <PlacesAutocompleteInput
+                  value={commonFields.name}
+                  onChange={handleCommonInputChange}
+                  onPlaceSelect={handlePlaceSelect}
+                  placeholder="搜尋或輸入地點名稱，例如：綠色生活咖啡館"
                   className="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 focus:bg-white transition-colors"
                 />
               </div>
