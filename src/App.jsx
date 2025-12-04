@@ -71,7 +71,14 @@ function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="locations" element={<ManageLocationsPage />} />
         <Route path="tags" element={<ManageTagsPage />} />
-        <Route path="types" element={<ManageLocationTypesPage />} />
+        <Route
+          path="types"
+          element={
+            <SuperAdminRoute>
+              <ManageLocationTypesPage />
+            </SuperAdminRoute>
+          }
+        />
         <Route
           path="manage-admins"
           element={

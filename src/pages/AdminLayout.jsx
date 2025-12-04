@@ -22,13 +22,15 @@ const AdminLayout = () => {
         <li className="mb-2">
           <Link to="/admin/tags" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>標籤管理</Link>
         </li>
-        <li className="mb-2">
-          <Link to="/admin/types" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>類型管理</Link>
-        </li>
         {isSuperAdmin && (
-          <li className="mb-2">
-            <Link to="/admin/manage-admins" className="block py-2 px-4 rounded hover:bg-gray-700 bg-red-900" onClick={() => setSidebarOpen(false)}>管理員管理</Link>
-          </li>
+          <>
+            <li className="mb-2">
+              <Link to="/admin/types" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>類型管理</Link>
+            </li>
+            <li className="mb-2">
+              <Link to="/admin/manage-admins" className="block py-2 px-4 rounded hover:bg-gray-700 bg-red-900" onClick={() => setSidebarOpen(false)}>管理員管理</Link>
+            </li>
+          </>
         )}
         <li className="mt-6 border-t border-gray-700 pt-4">
           <Link to="/" className="block py-2 px-4 rounded hover:bg-gray-700">&larr; 回到前台</Link>

@@ -2,11 +2,25 @@ import React from 'react';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 
 const TypeSelector = ({ onSelectType }) => {
-  const { activeTypes, loading: typesLoading } = useLocationTypes();
+  const { activeTypes, loading: typesLoading, error } = useLocationTypes();
 
   if (typesLoading) return (
     <div className="flex justify-center items-center py-20">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="max-w-2xl mx-auto p-6 bg-red-50 border border-red-200 rounded-lg">
+      <h3 className="text-lg font-semibold text-red-800 mb-2">載入地點類型時發生錯誤</h3>
+      <p className="text-sm text-red-600">{error.message || '無法載入地點類型，請重新整理頁面'}</p>
+    </div>
+  );
+
+  if (!activeTypes || activeTypes.length === 0) return (
+    <div className="max-w-2xl mx-auto p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+      <h3 className="text-lg font-semibold text-yellow-800 mb-2">目前沒有可用的地點類型</h3>
+      <p className="text-sm text-yellow-600">請聯絡管理員新增地點類型。</p>
     </div>
   );
 

@@ -5,7 +5,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
-import LocationFormContent from '../components/LocationFormContent'; // Import the new component
+import LocationFormContent from '../components/LocationFormContent';
+import TypeSelector from '../components/TypeSelector';
 
 
 const RegisterLocationPage = () => {
@@ -63,7 +64,7 @@ const RegisterLocationPage = () => {
               <h1 className="text-3xl font-extrabold text-gray-900">登錄新的綠活地點</h1>
               <p className="mt-2 text-lg text-gray-600">選擇最適合的地點類型，開始分享您的發現</p>
             </div>
-            <TypeSelector onSelectType={handleSelectType} activeTypes={activeTypes} loading={typesLoading} />
+            <TypeSelector onSelectType={handleSelectType} />
           </>
         ) : (
           selectedType && (
