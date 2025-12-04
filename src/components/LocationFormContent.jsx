@@ -192,11 +192,13 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
                   <span className="text-xs text-gray-500 ml-2">(可搜尋並自動填入地點資訊)</span>
                 </label>
                 <PlacesAutocompleteInput
+                  name="name"
                   value={commonFields.name}
                   onChange={handleCommonInputChange}
                   onPlaceSelect={handlePlaceSelect}
                   placeholder="搜尋或輸入地點名稱，例如：綠色生活咖啡館"
                   className="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 focus:bg-white transition-colors"
+                  required
                 />
               </div>
 
