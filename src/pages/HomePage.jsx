@@ -3,11 +3,10 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { GoogleMap, Marker } from '@react-google-maps/api';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
+import { getUserLocationCenter, TAIWAN_CENTER } from '../utils/mapUtils';
 
 import Header from '../components/Header';
 import LocationDetailSheet from '../components/LocationDetailSheet';
-
-const KAOHSIUNG_STATION_COORDS = { lat: 22.6397, lng: 120.2999 };
 
 const containerStyle = {
   width: '100%',
@@ -30,25 +29,20 @@ function HomePage({ isLoaded, loadError }) {
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [center, setCenter] = useState(KAOHSIUNG_STATION_COORDS);
-  const [zoom, setZoom] = useState(16);
+  const [center, setCenter] = useState(TAIWAN_CENTER.center || { lat: TAIWAN_CENTER.lat, lng: TAIWAN_CENTER.lng });
+  const [zoom, setZoom] = useState(TAIWAN_CENTER.zoom);
   const [filterTag, setFilterTag] = useState(null);
   const { getTypeById } = useLocationTypes();
 
-  // GPS 優先邏輯
+  // GPS 優先邏輯：根據使用者位置設定地圖中心點
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setCenter({ lat: latitude, lng: longitude });
-      },
-      () => {
-        console.log("Could not get geolocation, defaulting to Kaohsiung Station.");
-      },
-      {
-        enableHighAccuracy: true,
-      }
-    );
+    const initializeMapCenter = async () => {
+      const { center: userCenter, zoom: userZoom } = await getUserLocationCenter();
+      setCenter(userCenter);
+      setZoom(userZoom);
+    };
+
+    initializeMapCenter();
   }, []);
 
   // Fetch tags for the header

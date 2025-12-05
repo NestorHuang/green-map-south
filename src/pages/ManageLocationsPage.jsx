@@ -129,6 +129,29 @@ const ManageLocationsPage = () => {
     }
   };
 
+  const handleToggleLock = async (location) => {
+    const isLocked = location.locked || false;
+    const action = isLocked ? '解鎖' : '鎖定';
+
+    if (!confirm(`確定要${action}地點「${location.name}」嗎？\n${isLocked ? '解鎖後使用者可以編輯此地點。' : '鎖定後使用者將無法編輯此地點。'}`)) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'locations', location.id), {
+        locked: !isLocked,
+        updatedBy: auth.currentUser?.uid,
+        updatedAt: Timestamp.now(),
+      });
+
+      alert(`地點已成功${action}`);
+      await fetchLocations();
+    } catch (err) {
+      setError(`${action}失敗：${err.message}`);
+      console.error(err);
+    }
+  };
+
   const handleDelete = async (location) => {
     if (!confirm(`確定要刪除地點「${location.name}」嗎？\n此操作無法復原。`)) {
       return;
@@ -198,6 +221,9 @@ const ManageLocationsPage = () => {
                   標籤
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  狀態
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   操作
                 </th>
               </tr>
@@ -212,6 +238,7 @@ const ManageLocationsPage = () => {
               ) : (
                 locations.map(location => {
                   const photoURLs = location.photoURLs || (location.photoURL ? [location.photoURL] : []);
+                  const isLocked = location.locked || false;
                   return (
                     <tr key={location.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -234,6 +261,11 @@ const ManageLocationsPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900">{location.name}</div>
+                        {location.submitterInfo && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            提交者: {location.submitterInfo.displayName || location.submitterInfo.email}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-500">{location.address}</div>
@@ -253,12 +285,29 @@ const ManageLocationsPage = () => {
                           })}
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {isLocked ? (
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
+                            🔒 已鎖定
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                            🔓 未鎖定
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
                           onClick={() => handleOpenModal(location)}
                           className="text-indigo-600 hover:text-indigo-900 mr-4"
                         >
                           編輯
+                        </button>
+                        <button
+                          onClick={() => handleToggleLock(location)}
+                          className="text-yellow-600 hover:text-yellow-900 mr-4"
+                        >
+                          {isLocked ? '解鎖' : '鎖定'}
                         </button>
                         <button
                           onClick={() => handleDelete(location)}

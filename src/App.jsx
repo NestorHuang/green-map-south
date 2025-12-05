@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useLoadScript } from '@react-google-maps/api';
 
 // Page Components
@@ -67,6 +67,7 @@ function App() {
           </ProtectedRoute>
         }
       >
+        <Route index element={<Navigate to="/admin/pending" replace />} />
         <Route path="pending" element={<PendingLocationsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="locations" element={<ManageLocationsPage />} />

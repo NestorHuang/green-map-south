@@ -58,19 +58,23 @@ service cloud.firestore {
     
     
     // ==================== locations 規則 ====================
-    
+
     match /locations/{locationId} {
       // 所有人可讀取已核准的地點，管理員可讀取所有
       allow read: if resource.data.status == 'approved' || isAdmin();
-      
-      // 管理員可讀寫
+
+      // 管理員可完全讀寫
       allow write: if isAdmin();
-      
+
       // 額外驗證 typeId
       allow create: if isAdmin() &&
         typeExists(request.resource.data.typeId);
-      
-      allow update: if isAdmin() &&
+
+      // 使用者可以更新自己提交且未鎖定的地點
+      allow update: if (isAdmin() ||
+        (isAuthenticated() &&
+         resource.data.submitterInfo.uid == request.auth.uid &&
+         resource.data.locked != true)) &&
         typeExists(request.resource.data.typeId);
     }
     

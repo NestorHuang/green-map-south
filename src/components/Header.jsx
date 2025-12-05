@@ -6,12 +6,14 @@ import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
 import PlacesAutocomplete from './PlacesAutocomplete';
 import RegisterLocationModal from './RegisterLocationModal';
+import MyLocationsModal from './MyLocationsModal';
 
 const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
   const { user, userProfile, loading: userLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isMyLocationsModalOpen, setIsMyLocationsModalOpen] = useState(false);
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
@@ -40,6 +42,12 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
         className="text-sm text-green-600 hover:underline"
       >
         登錄地點
+      </button>
+      <button
+        onClick={() => setIsMyLocationsModalOpen(true)}
+        className="text-sm text-purple-600 hover:underline"
+      >
+        我的地點
       </button>
       <Link to="/profile" className="text-sm text-blue-600 hover:underline">個人資料</Link>
       <button onClick={handleSignOut} className="text-sm text-gray-600 hover:underline">登出</button>
@@ -131,6 +139,12 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       <RegisterLocationModal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
+      />
+
+      {/* My Locations Modal */}
+      <MyLocationsModal
+        isOpen={isMyLocationsModalOpen}
+        onClose={() => setIsMyLocationsModalOpen(false)}
       />
     </div>
   );
