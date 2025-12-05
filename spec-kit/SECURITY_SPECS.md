@@ -94,7 +94,16 @@ Firestore 觸發的雲端函式，職責如下：
     allow read: if resource.data.status == 'approved' || isAdmin();
     ```
     *(註：這是為了讓管理後台能順利載入所有地點列表，包含未核准或停用的地點)*
-  - **寫入**: 僅限管理員可寫入 (`allow write: if isAdmin();`)
+  - **完整寫入權限**: 管理員可完全讀寫 (`allow write: if isAdmin();`)
+  - **使用者更新權限**: 使用者可以更新自己提交且**未鎖定**的地點
+    ```javascript
+    allow update: if (isAdmin() ||
+      (isAuthenticated() &&
+       resource.data.submitterInfo.uid == request.auth.uid &&
+       resource.data.locked != true)) &&
+      typeExists(request.resource.data.typeId);
+    ```
+  - **鎖定機制**: 管理員可設定 `locked` 欄位為 `true`，防止原作者編輯
 
 - **`pending_locations` 集合安全**:
   - **讀取**: 僅限管理員
@@ -104,6 +113,12 @@ Firestore 觸發的雲端函式，職責如下：
 - **`location_types` 集合安全**:
   - **讀取**: 允許讀取已啟用 (`isActive == true`) 的類型，或管理員可讀取所有類型
   - **寫入**: 僅限管理員
+
+- **`audit_logs` 集合安全**:
+  - **讀取**: 僅限超級管理員 (`allow read: if isSuperAdmin();`)
+  - **新增**: 管理員可新增記錄 (`allow create: if isAdmin();`)
+  - **更新/刪除**: **任何人都無法執行** (`allow update, delete: if false;`)
+  - **不可變性**: 此設計確保所有操作記錄一旦寫入便永久保存，無法竄改或刪除，維持稽核追蹤的完整性與可信度
 
 ## Firebase Storage 安全規則 (`storage.rules`)
 

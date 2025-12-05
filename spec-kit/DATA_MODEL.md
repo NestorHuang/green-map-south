@@ -39,8 +39,13 @@
 - **status**: `string` - ('approved')
 - **submitterInfo**: `object` - 登錄者資訊（見下方說明）
 - **approvedAt**: `timestamp` - 核准時間
-- **typeId**: `string` - [新增] 關聯的地點類型 ID
-- **dynamicFields**: `map` - [新增] 動態欄位資料，鍵為 fieldId，值為對應內容
+- **typeId**: `string` - 關聯的地點類型 ID
+- **dynamicFields**: `map` - 動態欄位資料，鍵為 fieldId，值為對應內容
+- **createdBy**: `string` - 原始作者的 UID（地點創建者）
+- **createdAt**: `timestamp` - 地點創建時間
+- **updatedBy**: `string` - 最後編輯者的 UID
+- **updatedAt**: `timestamp` - 最後編輯時間
+- **locked**: `boolean` - 是否被管理員鎖定（鎖定後原作者無法編輯）
 
 **submitterInfo 物件結構**:
 - **uid**: `string` - 登錄者 UID
@@ -90,10 +95,17 @@
 使用者提交的錯誤回報。
 
 - **locationId**: `string` - 被回報的地點 ID
+- **locationName**: `string` - 被回報的地點名稱
 - **reportText**: `string` - 回報內容
 - **reportedBy**: `string` - 使用者 UID
+- **reportedAt**: `timestamp` - 回報時間
 - **status**: `string` - ('new' 或 'resolved')
-- ...
+- **resolvedAt**: `timestamp` - 解決時間（選填，僅當 status 為 'resolved' 時存在）
+
+**特殊說明**:
+- 同一地點可能有多個回報
+- 回報頁面會按 `locationId` 分組顯示
+- 每個回報可以獨立標記為已解決
 
 ## `admins` (集合)
 管理員列表。此集合為權限管理的單一事實來源 (Source of Truth)。
@@ -113,3 +125,40 @@
 **管理方式**:
 - **網頁介面**: 超級管理員可透過 `/admin/manage-admins` 頁面新增、刪除、同步管理員
 - **命令列工具**: 提供 `add_admin.cjs`、`check_user_claims.cjs` 等 CLI 工具供離線管理
+
+## `audit_logs` (集合)
+系統操作記錄。僅供超級管理員查看，任何人都無法修改或刪除。
+
+- **action**: `string` - 操作類型代碼（例如：`approve_location`, `update_user`, `add_admin`）
+- **actionLabel**: `string` - 操作類型中文標籤（例如：「核准地點」、「更新使用者」）
+- **timestamp**: `timestamp` - 操作時間（伺服器時間）
+- **operatorId**: `string` - 操作者 UID
+- **operatorEmail**: `string` - 操作者 Email
+- **operatorRole**: `string` - 操作者角色（`'user'`, `'admin'`, `'superAdmin'`）
+- **targetId**: `string` - 操作對象 ID（選填）
+- **targetName**: `string` - 操作對象名稱（選填）
+- **targetType**: `string` - 操作對象類型（例如：`'location'`, `'user'`, `'admin'`）
+- **changes**: `object` - 變更詳情（選填，JSON 格式）
+- **reason**: `string` - 操作原因（選填，僅部分操作適用）
+
+**操作類型列表**:
+- `approve_location` - 核准地點
+- `reject_location` - 拒絕地點
+- `create_location` - 新增地點
+- `update_location` - 更新地點（管理員或使用者編輯）
+- `delete_location` - 刪除地點
+- `lock_location` - 鎖定地點
+- `unlock_location` - 解鎖地點
+- `update_user` - 更新使用者資料
+- `add_admin` - 新增管理員
+- `remove_admin` - 移除管理員
+
+**存取規則**:
+- **讀取**: 僅限超級管理員（`request.auth.token.role == 'superAdmin'`）
+- **新增**: 管理員（`request.auth.token.role in ['admin', 'superAdmin']`）
+- **更新/刪除**: 禁止任何人執行（`allow update, delete: if false`）
+
+**特殊說明**:
+- 所有操作記錄由系統自動產生，透過 `src/utils/auditLog.js` 工具函數記錄
+- 操作者資訊自動從 Firebase Auth 當前使用者取得
+- 記錄不可變更，確保稽核追蹤的完整性與可信度
