@@ -120,6 +120,13 @@ Firestore 觸發的雲端函式，職責如下：
   - **更新/刪除**: **任何人都無法執行** (`allow update, delete: if false;`)
   - **不可變性**: 此設計確保所有操作記錄一旦寫入便永久保存，無法竄改或刪除，維持稽核追蹤的完整性與可信度
 
+- **`user_drafts` 集合安全** [新增]:
+  - **讀寫權限**: 使用者只能存取自己的草稿文件 (`allow read, write: if isAuthenticated() && request.auth.uid == userId;`)
+  - **子集合 `location_drafts`**: 使用者只能存取自己的地點草稿 (`allow read, write: if isAuthenticated() && request.auth.uid == userId;`)
+  - **用途**: 暫存使用者填寫到一半的地點登錄表單資料
+  - **資料隔離**: 確保使用者無法存取其他使用者的草稿
+  - **過期機制**: 草稿在 30 天後過期，可透過 Firebase TTL Policy 自動清理
+
 ## Firebase Storage 安全規則 (`storage.rules`)
 
 - **照片上傳**: 使用者只能上傳以自己 UID 開頭的檔案，防止惡意覆蓋他人檔案。

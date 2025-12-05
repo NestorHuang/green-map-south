@@ -162,3 +162,33 @@
 - 所有操作記錄由系統自動產生，透過 `src/utils/auditLog.js` 工具函數記錄
 - 操作者資訊自動從 Firebase Auth 當前使用者取得
 - 記錄不可變更，確保稽核追蹤的完整性與可信度
+
+## `user_drafts` (集合) [新增]
+使用者的地點登錄草稿，用於暫存尚未完成的表單資料。
+
+- **文件 ID**: 使用者的 UID
+- **內含子集合**: `location_drafts`
+
+### `location_drafts` (子集合)
+每個地點類型的草稿。
+
+- **文件 ID**: 地點類型 ID (`typeId`)
+- **commonFields**: `object` - 基本欄位資料
+  - **name**: `string` - 地點名稱
+  - **address**: `string` - 地址
+  - **description**: `string` - 描述
+- **dynamicFields**: `map` - 動態欄位資料
+- **selectedTags**: `array` of `string` - 選中的標籤 ID 列表
+- **selectedCoverIndex**: `number` - 選中的代表圖索引
+- **savedAt**: `timestamp` - 最後儲存時間
+- **expiresAt**: `timestamp` - 過期時間（30 天後自動刪除）
+
+**存取規則**:
+- **讀寫**: 使用者只能存取自己的草稿（`request.auth.uid == userId`）
+- **自動清理**: 草稿在 30 天後過期（可透過 Firebase TTL Policy 自動刪除）
+
+**儲存機制**:
+- **自動儲存**: 使用者填寫表單時，每 3 秒自動儲存一次
+- **跨裝置同步**: 使用者可在不同裝置上繼續填寫同一份草稿
+- **提交後清除**: 成功提交地點後，草稿會自動刪除
+- **僅限新增**: 編輯現有地點時不會儲存草稿

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, addDoc, GeoPoint, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, GeoPoint, Timestamp, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
@@ -14,7 +14,6 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   const { activeTypes, loading: typesLoading } = useLocationTypes(); // Might not need activeTypes here
 
   const isEditing = !!initialData?.id;
-  const storageKey = `locationForm_${selectedType.id}_draft`;
 
   // Form state
   const [commonFields, setCommonFields] = useState({
@@ -43,67 +42,87 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     fetchTags();
   }, []);
 
-  // Load draft from localStorage on mount (only for new locations, not editing)
+  // Load draft from Firestore on mount (only for new locations, not editing)
   useEffect(() => {
-    if (!isEditing) {
-      const savedDraft = localStorage.getItem(storageKey);
-      if (savedDraft) {
+    if (!isEditing && user?.uid) {
+      const checkDraft = async () => {
         try {
-          const draft = JSON.parse(savedDraft);
-          setHasDraft(true);
-          // Don't auto-load, let user decide
+          const draftRef = doc(db, 'user_drafts', user.uid, 'location_drafts', selectedType.id);
+          const draftSnap = await getDoc(draftRef);
+          if (draftSnap.exists()) {
+            setHasDraft(true);
+            // Don't auto-load, let user decide
+          }
         } catch (e) {
-          console.error('Failed to parse draft:', e);
-          localStorage.removeItem(storageKey);
+          console.error('Failed to check draft:', e);
         }
-      }
+      };
+      checkDraft();
     }
-  }, [isEditing, storageKey]);
+  }, [isEditing, user?.uid, selectedType.id]);
 
-  // Auto-save draft to localStorage (debounced)
+  // Auto-save draft to Firestore (debounced)
   useEffect(() => {
-    if (isEditing) return; // Don't save drafts when editing existing location
+    if (isEditing || !user?.uid) return; // Don't save drafts when editing or not logged in
 
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       // Only save if there's some data entered
       if (commonFields.name || commonFields.address || commonFields.description ||
           Object.keys(dynamicFields).length > 0 || selectedTags.length > 0) {
-        const draft = {
-          commonFields,
-          dynamicFields,
-          selectedTags,
-          selectedCoverIndex,
-          savedAt: new Date().toISOString()
-        };
-        localStorage.setItem(storageKey, JSON.stringify(draft));
+        try {
+          const draftRef = doc(db, 'user_drafts', user.uid, 'location_drafts', selectedType.id);
+          const draft = {
+            commonFields,
+            dynamicFields,
+            selectedTags,
+            selectedCoverIndex,
+            savedAt: Timestamp.now(),
+            expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // 30 days from now
+          };
+          await setDoc(draftRef, draft);
+        } catch (e) {
+          console.error('Failed to save draft:', e);
+        }
       }
-    }, 1000); // Save after 1 second of inactivity
+    }, 3000); // Save after 3 seconds of inactivity (reduced frequency for Firestore)
 
     return () => clearTimeout(timeoutId);
-  }, [commonFields, dynamicFields, selectedTags, selectedCoverIndex, isEditing, storageKey]);
+  }, [commonFields, dynamicFields, selectedTags, selectedCoverIndex, isEditing, user?.uid, selectedType.id]);
 
-  const loadDraft = () => {
-    const savedDraft = localStorage.getItem(storageKey);
-    if (savedDraft) {
-      try {
-        const draft = JSON.parse(savedDraft);
+  const loadDraft = async () => {
+    if (!user?.uid) return;
+
+    try {
+      const draftRef = doc(db, 'user_drafts', user.uid, 'location_drafts', selectedType.id);
+      const draftSnap = await getDoc(draftRef);
+
+      if (draftSnap.exists()) {
+        const draft = draftSnap.data();
         setCommonFields(draft.commonFields || commonFields);
         setDynamicFields(draft.dynamicFields || {});
         setSelectedTags(draft.selectedTags || []);
         setSelectedCoverIndex(draft.selectedCoverIndex || 0);
         setHasDraft(false);
         alert('已恢復先前的填寫內容');
-      } catch (e) {
-        console.error('Failed to load draft:', e);
-        alert('載入暫存資料失敗');
       }
+    } catch (e) {
+      console.error('Failed to load draft:', e);
+      alert('載入暫存資料失敗');
     }
   };
 
-  const clearDraft = () => {
-    localStorage.removeItem(storageKey);
-    setHasDraft(false);
-    alert('已清除暫存資料');
+  const clearDraft = async () => {
+    if (!user?.uid) return;
+
+    try {
+      const draftRef = doc(db, 'user_drafts', user.uid, 'location_drafts', selectedType.id);
+      await deleteDoc(draftRef);
+      setHasDraft(false);
+      alert('已清除暫存資料');
+    } catch (e) {
+      console.error('Failed to clear draft:', e);
+      alert('清除暫存資料失敗');
+    }
   };
 
   const handleCommonInputChange = (e) => {
@@ -274,8 +293,13 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
       await onSave(locationData, isEditing);
 
       // Clear draft after successful submission
-      if (!isEditing) {
-        localStorage.removeItem(storageKey);
+      if (!isEditing && user?.uid) {
+        try {
+          const draftRef = doc(db, 'user_drafts', user.uid, 'location_drafts', selectedType.id);
+          await deleteDoc(draftRef);
+        } catch (e) {
+          console.error('Failed to clear draft after submission:', e);
+        }
       }
 
     } catch (err) {

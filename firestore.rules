@@ -130,5 +130,15 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update, delete: if false;
     }
+
+    match /user_drafts/{userId} {
+      // 使用者只能存取自己的草稿
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+
+      match /location_drafts/{draftId} {
+        // 使用者可以讀寫自己的地點草稿
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
   }
 }

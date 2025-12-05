@@ -289,7 +289,9 @@ const ManageLocationsPage = () => {
                         <div className="text-sm font-medium text-gray-900">{location.name}</div>
                         {location.submitterInfo && (
                           <div className="text-xs text-gray-500 mt-1">
-                            作者: {location.submitterInfo.displayName || location.submitterInfo.email}
+                            作者: {location.submitterInfo.isWildernessPartner && location.submitterInfo.groupName && location.submitterInfo.naturalName
+                              ? `${location.submitterInfo.groupName}-${location.submitterInfo.naturalName}`
+                              : (location.submitterInfo.displayName || location.submitterInfo.email)}
                           </div>
                         )}
                         {location.updatedAt && location.updatedBy !== location.createdBy && (
