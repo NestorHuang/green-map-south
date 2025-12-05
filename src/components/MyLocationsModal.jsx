@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 import LocationFormContent from './LocationFormContent';
+import { logAuditAction, AuditAction } from '../utils/auditLog';
 
 const MyLocationsModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
@@ -82,6 +83,14 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
         updatedBy: user.uid,
         updatedAt: Timestamp.now(),
       });
+
+      // Log the action
+      await logAuditAction(AuditAction.UPDATE_LOCATION, {
+        targetId: editingLocation.id,
+        targetName: locationData.name,
+        targetType: 'location',
+      });
+
       alert('地點已成功更新！');
       handleBack();
       await fetchMyLocations();

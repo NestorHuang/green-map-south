@@ -22,6 +22,9 @@ const AdminLayout = () => {
         <li className="mb-2">
           <Link to="/admin/tags" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>標籤管理</Link>
         </li>
+        <li className="mb-2">
+          <Link to="/admin/users" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>使用者管理</Link>
+        </li>
         {isSuperAdmin && (
           <>
             <li className="mb-2">
@@ -29,6 +32,9 @@ const AdminLayout = () => {
             </li>
             <li className="mb-2">
               <Link to="/admin/manage-admins" className="block py-2 px-4 rounded hover:bg-gray-700 bg-red-900" onClick={() => setSidebarOpen(false)}>管理員管理</Link>
+            </li>
+            <li className="mb-2">
+              <Link to="/admin/audit-logs" className="block py-2 px-4 rounded hover:bg-gray-700" onClick={() => setSidebarOpen(false)}>操作記錄</Link>
             </li>
           </>
         )}

@@ -2,11 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, doc, getDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '../firebaseConfig';
+import PendingLocationDetailModal from '../components/PendingLocationDetailModal';
+import { logLocationApproval, logLocationRejection } from '../utils/auditLog';
 
 const PendingLocationsPage = () => {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState(null);
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -29,7 +32,7 @@ const PendingLocationsPage = () => {
   const handleApprove = async (id) => {
     try {
       const batch = writeBatch(db);
-      
+
       // 1. Get the pending document
       const pendingDocRef = doc(db, 'pending_locations', id);
       const pendingDoc = await getDoc(pendingDocRef);
@@ -38,10 +41,17 @@ const PendingLocationsPage = () => {
 
       // 2. Create a new document in the public 'locations' collection
       const newLocationRef = doc(collection(db, 'locations'));
+      const now = new Date();
       batch.set(newLocationRef, {
         ...dataToApprove,
         status: 'approved',
-        approvedAt: new Date(),
+        approvedAt: now,
+        // Set createdBy to the original submitter
+        createdBy: dataToApprove.submitterInfo?.uid || 'unknown',
+        createdAt: dataToApprove.submittedAt || now,
+        // Initially, updatedBy is same as createdBy
+        updatedBy: dataToApprove.submitterInfo?.uid || 'unknown',
+        updatedAt: now,
       });
 
       // 3. Delete the pending document
@@ -50,7 +60,10 @@ const PendingLocationsPage = () => {
       // 4. Commit the batch
       await batch.commit();
 
-      // 5. Update UI
+      // 5. Log the action
+      await logLocationApproval(newLocationRef.id, dataToApprove.name);
+
+      // 6. Update UI
       setPending(prev => prev.filter(item => item.id !== id));
 
     } catch (err) {
@@ -61,10 +74,11 @@ const PendingLocationsPage = () => {
 
   const handleReject = async (id) => {
     try {
-      // Get the photoURL before deleting the document
+      // Get the document data before deleting
       const pendingDocRef = doc(db, 'pending_locations', id);
       const pendingDoc = await getDoc(pendingDocRef);
-      const photoURL = pendingDoc.data()?.photoURL;
+      const data = pendingDoc.data();
+      const photoURL = data?.photoURL;
 
       // 1. Delete the document from Firestore
       await deleteDoc(pendingDocRef);
@@ -75,7 +89,10 @@ const PendingLocationsPage = () => {
         await deleteObject(photoRef);
       }
 
-      // 3. Update UI
+      // 3. Log the action
+      await logLocationRejection(id, data?.name || '未知地點');
+
+      // 4. Update UI
       setPending(prev => prev.filter(item => item.id !== id));
 
     } catch (err) {
@@ -100,52 +117,85 @@ const PendingLocationsPage = () => {
               ? `${submitter.groupName}-${submitter.naturalName}`
               : (submitter?.displayName || '未知使用者');
 
-            return (
-              <div key={item.id} className="bg-white p-4 rounded-lg shadow">
-                <h2 className="text-lg font-bold">{item.name}</h2>
-                <p className="text-sm text-gray-600">{item.address}</p>
-                <p className="text-sm my-2">{item.description}</p>
+            const photoURLs = item.photoURLs || (item.photoURL ? [item.photoURL] : []);
 
-                {/* 登錄者資訊 */}
-                <div className="my-3 p-3 bg-green-50 border border-green-200 rounded">
-                  <p className="text-xs text-gray-600 mb-1">登錄者</p>
-                  <p className="text-sm font-medium text-gray-900">{submitterDisplay}</p>
-                  {submitter?.isWildernessPartner && (
-                    <p className="text-xs text-green-600 mt-1">🌿 荒野夥伴</p>
+            return (
+              <div key={item.id} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                <div className="flex gap-4">
+                  {/* 縮圖 */}
+                  {photoURLs.length > 0 && (
+                    <div className="flex-shrink-0">
+                      <img
+                        src={photoURLs[0]}
+                        alt={item.name}
+                        className="w-24 h-24 object-cover rounded"
+                      />
+                      {photoURLs.length > 1 && (
+                        <span className="text-xs text-gray-500 mt-1 block">+{photoURLs.length - 1} 張</span>
+                      )}
+                    </div>
                   )}
+
+                  {/* 內容 */}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-bold truncate">{item.name}</h2>
+                    <p className="text-sm text-gray-600 truncate">{item.address}</p>
+                    <p className="text-sm text-gray-700 mt-2 line-clamp-2">{item.description || '無描述'}</p>
+
+                    {/* 登錄者資訊 */}
+                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full">
+                      <span className="text-xs text-gray-600">登錄者：</span>
+                      <span className="text-xs font-medium text-gray-900">{submitterDisplay}</span>
+                      {submitter?.isWildernessPartner && (
+                        <span className="text-xs text-green-600">🌿</span>
+                      )}
+                    </div>
+
+                    {/* 提交時間 */}
+                    {item.submittedAt && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        提交時間：{new Date(item.submittedAt.seconds * 1000).toLocaleString('zh-TW')}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                {/* 圖片連結 */}
-                {item.photoURLs && item.photoURLs.length > 0 ? (
-                  <div className="my-2">
-                    <p className="text-xs text-gray-600 mb-1">圖片 ({item.photoURLs.length} 張):</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {item.photoURLs.map((url, index) => (
-                        <a
-                          key={index}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 text-sm hover:underline"
-                        >
-                          圖片 {index + 1}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : item.photoURL && (
-                  <a href={item.photoURL} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline">查看照片</a>
-                )}
-
-                <div className="mt-4 flex gap-4">
-                  <button onClick={() => handleApprove(item.id)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">核准</button>
-                  <button onClick={() => handleReject(item.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">拒絕</button>
+                {/* 操作按鈕 */}
+                <div className="mt-4 flex gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => setSelectedLocation(item)}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+                  >
+                    查看完整內容
+                  </button>
+                  <button
+                    onClick={() => handleApprove(item.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                  >
+                    核准
+                  </button>
+                  <button
+                    onClick={() => handleReject(item.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                  >
+                    拒絕
+                  </button>
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Detail Modal */}
+      {selectedLocation && (
+        <PendingLocationDetailModal
+          location={selectedLocation}
+          onClose={() => setSelectedLocation(null)}
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
+      )}
     </div>
   );
 };

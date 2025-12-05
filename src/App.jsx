@@ -13,6 +13,8 @@ import ManageAdminsPage from './pages/ManageAdminsPage';
 import ManageLocationsPage from './pages/ManageLocationsPage';
 import ManageTagsPage from './pages/ManageTagsPage';
 import ManageLocationTypesPage from './pages/ManageLocationTypesPage';
+import ManageUsersPage from './pages/ManageUsersPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 
 // Route Protection
 import ProtectedRoute from './components/ProtectedRoute';
@@ -72,6 +74,7 @@ function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="locations" element={<ManageLocationsPage />} />
         <Route path="tags" element={<ManageTagsPage />} />
+        <Route path="users" element={<ManageUsersPage />} />
         <Route
           path="types"
           element={
@@ -85,6 +88,14 @@ function App() {
           element={
             <SuperAdminRoute>
               <ManageAdminsPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="audit-logs"
+          element={
+            <SuperAdminRoute>
+              <AuditLogsPage />
             </SuperAdminRoute>
           }
         />

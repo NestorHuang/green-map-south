@@ -5,6 +5,7 @@ import { db, storage, auth } from '../firebaseConfig';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 import LocationFormContent from '../components/LocationFormContent';
 import TypeSelector from '../components/TypeSelector';
+import { logLocationLockChange, logLocationDeletion, logAuditAction, AuditAction } from '../utils/auditLog';
 
 const ManageLocationsPage = () => {
   const { types: allLocationTypes, loading: typesLoading, getTypeById } = useLocationTypes();
@@ -99,24 +100,43 @@ const ManageLocationsPage = () => {
   const handleSaveLocationInAdmin = async (locationData, isEditing) => {
     setLoading(true);
     try {
-      const finalLocationData = {
-        ...locationData,
-        createdBy: auth.currentUser?.uid || 'admin',
-        updatedBy: auth.currentUser?.uid || 'admin',
-        status: 'approved',
-      };
-
       if (isEditing && editingLocation?.id) {
+        // When editing, only update the location data and updatedBy/updatedAt
+        // DO NOT overwrite createdBy or createdAt
         await updateDoc(doc(db, 'locations', editingLocation.id), {
-          ...finalLocationData,
+          ...locationData,
+          updatedBy: auth.currentUser?.uid || 'admin',
           updatedAt: Timestamp.now(),
+          status: 'approved',
         });
+
+        // Log the action
+        await logAuditAction(AuditAction.UPDATE_LOCATION, {
+          targetId: editingLocation.id,
+          targetName: locationData.name,
+          targetType: 'location',
+        });
+
         alert('地點已成功更新！');
       } else {
-        await addDoc(collection(db, 'locations'), {
-          ...finalLocationData,
-          createdAt: Timestamp.now(),
+        // When creating new location, set both createdBy and initial updatedBy
+        const now = Timestamp.now();
+        const docRef = await addDoc(collection(db, 'locations'), {
+          ...locationData,
+          createdBy: auth.currentUser?.uid || 'admin',
+          createdAt: now,
+          updatedBy: auth.currentUser?.uid || 'admin',
+          updatedAt: now,
+          status: 'approved',
         });
+
+        // Log the action
+        await logAuditAction(AuditAction.CREATE_LOCATION, {
+          targetId: docRef.id,
+          targetName: locationData.name,
+          targetType: 'location',
+        });
+
         alert('地點已成功新增！');
       }
       handleCloseModal();
@@ -143,6 +163,9 @@ const ManageLocationsPage = () => {
         updatedBy: auth.currentUser?.uid,
         updatedAt: Timestamp.now(),
       });
+
+      // Log the action
+      await logLocationLockChange(location.id, location.name, !isLocked);
 
       alert(`地點已成功${action}`);
       await fetchLocations();
@@ -171,6 +194,9 @@ const ManageLocationsPage = () => {
       }
 
       await deleteDoc(doc(db, 'locations', location.id));
+
+      // Log the action
+      await logLocationDeletion(location.id, location.name);
 
       alert('地點已成功刪除');
       await fetchLocations();
@@ -263,7 +289,12 @@ const ManageLocationsPage = () => {
                         <div className="text-sm font-medium text-gray-900">{location.name}</div>
                         {location.submitterInfo && (
                           <div className="text-xs text-gray-500 mt-1">
-                            提交者: {location.submitterInfo.displayName || location.submitterInfo.email}
+                            作者: {location.submitterInfo.displayName || location.submitterInfo.email}
+                          </div>
+                        )}
+                        {location.updatedAt && location.updatedBy !== location.createdBy && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            最後編輯: {location.updatedAt.toDate().toLocaleDateString('zh-TW')}
                           </div>
                         )}
                       </td>

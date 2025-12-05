@@ -107,7 +107,9 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // 使用者可讀寫自己的資料，管理員可讀取所有使用者資料
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
     }
     
     match /reports/{reportId} {
@@ -119,6 +121,14 @@ service cloud.firestore {
     match /admins/{adminId} {
       allow read: if isAdmin();
       allow write: if isSuperAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      // 僅超級管理員可讀取操作記錄
+      allow read: if isSuperAdmin();
+      // 管理員可新增記錄，但任何人都不能修改或刪除
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
   }
 }

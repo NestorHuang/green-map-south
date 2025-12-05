@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
+import { logAdminAdd, logAdminRemove } from '../utils/auditLog';
 
 const ManageAdminsPage = () => {
   const [admins, setAdmins] = useState([]);
@@ -62,7 +63,10 @@ const ManageAdminsPage = () => {
     try {
       const functions = getFunctions();
       const addAdminByEmail = httpsCallable(functions, 'addAdminByEmail');
-      await addAdminByEmail({ email: newAdminEmail, role: 'admin' });
+      const result = await addAdminByEmail({ email: newAdminEmail, role: 'admin' });
+
+      // Log the action
+      await logAdminAdd(result.data?.uid || 'unknown', newAdminEmail, 'admin');
 
       alert(`成功新增管理員：${newAdminEmail}\n該使用者需要登出並重新登入才能獲得權限。`);
       setNewAdminEmail('');
@@ -112,6 +116,10 @@ const ManageAdminsPage = () => {
 
     try {
       await deleteDoc(doc(db, 'admins', uid));
+
+      // Log the action
+      await logAdminRemove(uid, email, role);
+
       await fetchAdmins();
       alert(`已成功移除管理員：${email}`);
     } catch (err) {
