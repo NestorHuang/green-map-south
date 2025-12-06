@@ -76,9 +76,16 @@ function HomePage({ isLoaded, loadError }) {
       let locationsQuery;
 
       if (filterTag) {
-        locationsQuery = query(collection(db, 'locations'), where('tags', 'array-contains', filterTag));
+        locationsQuery = query(
+          collection(db, 'locations'),
+          where('status', '==', 'approved'),
+          where('tags', 'array-contains', filterTag)
+        );
       } else {
-        locationsQuery = query(collection(db, 'locations'));
+        locationsQuery = query(
+          collection(db, 'locations'),
+          where('status', '==', 'approved')
+        );
       }
 
       const querySnapshot = await getDocs(locationsQuery);

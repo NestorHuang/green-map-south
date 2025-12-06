@@ -80,11 +80,12 @@ service cloud.firestore {
     
     
     // ==================== pending_locations 規則 ====================
-    
+
     match /pending_locations/{locationId} {
-      // 僅管理員可讀取
-      allow read: if isAdmin();
-      
+      // 管理員可讀取所有，使用者可讀取自己提交的
+      allow read: if isAdmin() ||
+                     (isAuthenticated() && resource.data.submitterInfo.uid == request.auth.uid);
+
       // 登入使用者可建立
       allow create: if isAuthenticated() &&
         request.resource.data.submitterInfo.uid == request.auth.uid &&
@@ -93,7 +94,7 @@ service cloud.firestore {
           request.resource.data.typeId,
           request.resource.data.dynamicFields
         );
-      
+
       // 僅管理員可更新和刪除
       allow update, delete: if isAdmin();
     }

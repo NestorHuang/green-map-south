@@ -27,16 +27,46 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
   const fetchMyLocations = async () => {
     setLoading(true);
     try {
-      const q = query(
+      // 同時查詢已核准和待審核的地點
+      const approvedQuery = query(
         collection(db, 'locations'),
         where('submitterInfo.uid', '==', user.uid)
       );
-      const querySnapshot = await getDocs(q);
-      const locationsData = querySnapshot.docs.map(doc => ({
+
+      const pendingQuery = query(
+        collection(db, 'pending_locations'),
+        where('submitterInfo.uid', '==', user.uid)
+      );
+
+      const [approvedSnapshot, pendingSnapshot] = await Promise.all([
+        getDocs(approvedQuery),
+        getDocs(pendingQuery)
+      ]);
+
+      // 處理已核准的地點
+      const approvedLocations = approvedSnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        status: doc.data().status || 'approved',
+        collectionType: 'locations' // 標記來自哪個集合
       }));
-      setMyLocations(locationsData);
+
+      // 處理待審核的地點
+      const pendingLocations = pendingSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        status: 'pending',
+        collectionType: 'pending_locations' // 標記來自哪個集合
+      }));
+
+      // 合併並按提交時間排序（最新的在前）
+      const allLocations = [...approvedLocations, ...pendingLocations].sort((a, b) => {
+        const timeA = a.submittedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+        const timeB = b.submittedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+
+      setMyLocations(allLocations);
     } catch (err) {
       setError(`無法載入您的地點: ${err.message}`);
       console.error("Error fetching my locations:", err);
@@ -59,6 +89,11 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
   };
 
   const handleEditClick = (location) => {
+    if (location.status === 'pending') {
+      alert('待審核的地點暫時無法編輯，請等待管理員核准後再進行編輯');
+      return;
+    }
+
     if (location.locked) {
       alert('此地點已被管理員鎖定，無法編輯');
       return;
@@ -234,14 +269,19 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
                                   )}
 
                                   {/* 狀態 */}
-                                  <div className="mt-2">
-                                    {isLocked ? (
-                                      <span className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
-                                        🔒 已鎖定
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {location.status === 'pending' ? (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded font-medium">
+                                        ⏳ 待審核
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                                        可編輯
+                                      <span className="inline-flex items-center px-2 py-1 text-xs bg-green-100 text-green-800 rounded font-medium">
+                                        ✓ 已核准
+                                      </span>
+                                    )}
+                                    {isLocked && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
+                                        🔒 已鎖定
                                       </span>
                                     )}
                                   </div>
@@ -251,9 +291,9 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
                                 <div className="ml-4">
                                   <button
                                     onClick={() => handleEditClick(location)}
-                                    disabled={isLocked}
+                                    disabled={isLocked || location.status === 'pending'}
                                     className={`px-4 py-2 text-sm font-medium rounded-md ${
-                                      isLocked
+                                      isLocked || location.status === 'pending'
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                         : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                     }`}
