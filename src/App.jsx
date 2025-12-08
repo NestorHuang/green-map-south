@@ -4,6 +4,7 @@ import { useLoadScript } from '@react-google-maps/api';
 
 // Page Components
 import HomePage from './pages/HomePage';
+import LocationDetailPage from './pages/LocationDetailPage';
 import RegisterLocationPage from './pages/RegisterLocationPage';
 import UserProfilePage from './pages/UserProfilePage';
 import AdminLayout from './pages/AdminLayout';
@@ -37,8 +38,9 @@ function App() {
 
   return (
     <Routes>
-      {/* Public Route */}
+      {/* Public Routes */}
       <Route path="/" element={<HomePage isLoaded={isLoaded} loadError={loadError} />} />
+      <Route path="/location/:id" element={<LocationDetailPage />} />
 
       {/* User Routes */}
       <Route

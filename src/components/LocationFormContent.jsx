@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, addDoc, GeoPoint, Timestamp, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, GeoPoint, Timestamp, doc, setDoc, getDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
 import { useAuth } from '../hooks/useAuth';
@@ -8,6 +8,9 @@ import { useLocationTypes } from '../contexts/LocationTypesContext';
 import DynamicForm from './DynamicForm/DynamicForm';
 import PlacesAutocompleteInput from './PlacesAutocompleteInput';
 import { validateDynamicFields } from '../utils/fieldValidation';
+import { checkDuplicateWithApproved } from '../utils/duplicateDetection';
+import SimilarLocationsModal from './SimilarLocationsModal';
+import CheckInForm from './CheckInForm';
 
 const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) => {
   const { user, userProfile } = useAuth();
@@ -34,6 +37,12 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Similar locations detection
+  const [similarLocations, setSimilarLocations] = useState([]);
+  const [showSimilarModal, setShowSimilarModal] = useState(false);
+  const [checkInMode, setCheckInMode] = useState(false);
+  const [selectedLocationForCheckIn, setSelectedLocationForCheckIn] = useState(null);
+
   useEffect(() => {
     const fetchTags = async () => {
       const querySnapshot = await getDocs(collection(db, 'tags'));
@@ -41,6 +50,55 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     };
     fetchTags();
   }, []);
+
+  // Similar locations detection (debounced)
+  useEffect(() => {
+    // 只在新增模式下檢測，編輯模式不需要
+    if (isEditing) return;
+
+    // 需要有名稱或地址才進行檢測
+    if (!commonFields.name && !commonFields.address) {
+      setSimilarLocations([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        // 載入已核准的地點
+        const locationsQuery = query(
+          collection(db, 'locations'),
+          where('status', '==', 'approved')
+        );
+        const snapshot = await getDocs(locationsQuery);
+        const approvedLocations = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        // 建構當前填寫的地點資料（用於比對）
+        const currentLocation = {
+          name: commonFields.name,
+          address: commonFields.address,
+          // position 暫時不可用，因為尚未 geocode
+        };
+
+        // 檢測相似地點
+        const duplicates = checkDuplicateWithApproved(currentLocation, approvedLocations);
+
+        // 如果有相似地點，加上距離資訊（如果有 GPS）
+        const enrichedDuplicates = duplicates.map(item => ({
+          ...item,
+          distance: 0, // 暫時設為 0，因為還沒有 geocode
+        }));
+
+        setSimilarLocations(enrichedDuplicates);
+      } catch (err) {
+        console.error('Failed to check similar locations:', err);
+      }
+    }, 1500); // 1.5 秒後檢測
+
+    return () => clearTimeout(timeoutId);
+  }, [commonFields.name, commonFields.address, isEditing]);
 
   // Load draft from Firestore on mount (only for new locations, not editing)
   useEffect(() => {
@@ -190,6 +248,36 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     setSelectedCoverIndex(index);
   };
 
+  // Handle user selecting to check in to a similar location
+  const handleCheckInToSimilar = (location) => {
+    setSelectedLocationForCheckIn(location);
+    setCheckInMode(true);
+    setShowSimilarModal(false);
+  };
+
+  // Handle user choosing to continue as new location
+  const handleContinueAsNew = () => {
+    setShowSimilarModal(false);
+    setSimilarLocations([]); // Clear similar locations to prevent re-triggering
+    // Continue with submission by calling the actual submit logic
+    submitAsNewLocation();
+  };
+
+  // Handle canceling check-in mode
+  const handleCancelCheckIn = () => {
+    setCheckInMode(false);
+    setSelectedLocationForCheckIn(null);
+  };
+
+  // Handle successful check-in submission
+  const handleCheckInSuccess = () => {
+    alert('登錄已提交，等待管理員審核！');
+    // Reset form or navigate away
+    if (onCancel) {
+      onCancel();
+    }
+  };
+
   // Get photos in display order (cover photo first)
   const getOrderedPhotos = () => {
     const allPhotos = [
@@ -212,6 +300,7 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     return allPhotos;
   };
 
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -231,7 +320,7 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
       window.scrollTo(0, 0);
       return;
     }
-    
+
     // Dynamic fields validation
     const dynamicErrors = validateDynamicFields(selectedType.fieldSchema, dynamicFields);
     if (Object.keys(dynamicErrors).length > 0) {
@@ -241,6 +330,18 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
         return;
     }
 
+    // Check for similar locations before submitting (only for new locations)
+    if (!isEditing && similarLocations.length > 0) {
+      setShowSimilarModal(true);
+      return;
+    }
+
+    // If no similar locations or editing existing, proceed with submission
+    await submitAsNewLocation();
+  };
+
+  // Extract the actual submission logic
+  const submitAsNewLocation = async () => {
     setLoading(true);
 
     try {
@@ -310,8 +411,29 @@ const LocationFormContent = ({ selectedType, initialData, onSave, onCancel }) =>
     }
   };
 
+  // If user chose to check in to a similar location, show CheckInForm
+  if (checkInMode && selectedLocationForCheckIn) {
+    return (
+      <CheckInForm
+        location={selectedLocationForCheckIn}
+        onSuccess={handleCheckInSuccess}
+        onCancel={handleCancelCheckIn}
+      />
+    );
+  }
+
   return (
     <>
+      {/* Similar Locations Modal */}
+      {showSimilarModal && (
+        <SimilarLocationsModal
+          similarLocations={similarLocations}
+          onCheckIn={handleCheckInToSimilar}
+          onContinueAsNew={handleContinueAsNew}
+          onClose={() => setShowSimilarModal(false)}
+        />
+      )}
+
       {/* Draft notification modal */}
       {hasDraft && !isEditing && (
         <div className="fixed inset-0 z-[3000] overflow-y-auto">

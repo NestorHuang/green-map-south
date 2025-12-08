@@ -76,6 +76,26 @@ service cloud.firestore {
          resource.data.submitterInfo.uid == request.auth.uid &&
          resource.data.locked != true)) &&
         typeExists(request.resource.data.typeId);
+
+      // ==================== check_ins subcollection 規則 ====================
+
+      match /check_ins/{checkInId} {
+        // 讀取單個文檔：只能讀取已核准的登錄
+        allow get: if resource.data.status == 'approved' || isAdmin();
+
+        // 列表查詢：允許查詢（客戶端會過濾 status）
+        // 這樣可以支援沒有索引時的 fallback 查詢
+        allow list: if true;
+
+        // 管理員可完全控制
+        allow write: if isAdmin();
+
+        // 使用者可編輯自己的未鎖定登錄（僅限已核准的）
+        allow update: if isAuthenticated() &&
+                         resource.data.submitterInfo.uid == request.auth.uid &&
+                         resource.data.locked != true &&
+                         resource.data.status == 'approved';
+      }
     }
     
     
@@ -94,6 +114,22 @@ service cloud.firestore {
           request.resource.data.typeId,
           request.resource.data.dynamicFields
         );
+
+      // 僅管理員可更新和刪除
+      allow update, delete: if isAdmin();
+    }
+
+    // ==================== pending_check_ins 規則 ====================
+
+    match /pending_check_ins/{checkInId} {
+      // 管理員可讀取所有，使用者可讀取自己的
+      allow read: if isAdmin() ||
+                     (isAuthenticated() && resource.data.submitterInfo.uid == request.auth.uid);
+
+      // 登入使用者可建立（需驗證關聯的地點存在）
+      allow create: if isAuthenticated() &&
+        request.resource.data.submitterInfo.uid == request.auth.uid &&
+        exists(/databases/$(database)/documents/locations/$(request.resource.data.locationId));
 
       // 僅管理員可更新和刪除
       allow update, delete: if isAdmin();

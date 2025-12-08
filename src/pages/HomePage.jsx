@@ -29,6 +29,7 @@ function HomePage({ isLoaded, loadError }) {
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [selectedLocations, setSelectedLocations] = useState([]); // For overlapping locations
   const [center, setCenter] = useState(TAIWAN_CENTER.center || { lat: TAIWAN_CENTER.lat, lng: TAIWAN_CENTER.lng });
   const [zoom, setZoom] = useState(TAIWAN_CENTER.zoom);
   const [filterTag, setFilterTag] = useState(null);
@@ -106,12 +107,50 @@ function HomePage({ isLoaded, loadError }) {
     }
   }, [fetchLocations, isLoaded]);
 
+  // Helper function to check if two coordinates are the same or very close
+  const areCoordinatesClose = (lat1, lng1, lat2, lng2, threshold = 0.0001) => {
+    return Math.abs(lat1 - lat2) < threshold && Math.abs(lng1 - lng2) < threshold;
+  };
+
+  // Find all locations at the same position
+  const findOverlappingLocations = (clickedLocation) => {
+    // Support both _lat/_long and _latitude/_longitude formats
+    const clickedLat = clickedLocation.position?._lat || clickedLocation.position?._latitude;
+    const clickedLng = clickedLocation.position?._long || clickedLocation.position?._longitude;
+
+    if (typeof clickedLat !== 'number' || typeof clickedLng !== 'number') {
+      return [clickedLocation];
+    }
+
+    return locations.filter(loc => {
+      const lat = loc.position?._lat || loc.position?._latitude;
+      const lng = loc.position?._long || loc.position?._longitude;
+
+      if (typeof lat !== 'number' || typeof lng !== 'number') {
+        return false;
+      }
+
+      return areCoordinatesClose(clickedLat, clickedLng, lat, lng);
+    });
+  };
+
   const handleMarkerClick = (location) => {
-    setSelectedLocation(location);
+    const overlapping = findOverlappingLocations(location);
+
+    if (overlapping.length > 1) {
+      // Multiple locations at the same position
+      setSelectedLocations(overlapping);
+      setSelectedLocation(overlapping[0]); // Set first one as default
+    } else {
+      // Single location
+      setSelectedLocations([]);
+      setSelectedLocation(location);
+    }
   };
 
   const handleCloseSheet = () => {
     setSelectedLocation(null);
+    setSelectedLocations([]);
   };
 
   const handlePlaceSelect = useCallback((coords) => {
@@ -172,8 +211,9 @@ function HomePage({ isLoaded, loadError }) {
         onTagFilter={handleTagFilter}
         onClearFilter={handleClearFilter}
       />
-      <LocationDetailSheet 
+      <LocationDetailSheet
         location={selectedLocation}
+        locations={selectedLocations.length > 1 ? selectedLocations : null}
         onClose={handleCloseSheet}
       />
     </>

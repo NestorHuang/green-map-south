@@ -9,7 +9,7 @@
  * @param {string} str2
  * @returns {number} 0-1 之間的相似度，1 表示完全相同
  */
-function calculateStringSimilarity(str1, str2) {
+export function calculateStringSimilarity(str1, str2) {
   if (!str1 || !str2) return 0;
 
   // 正規化：轉小寫、移除空格
