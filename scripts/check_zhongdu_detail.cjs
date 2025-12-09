@@ -33,6 +33,7 @@ async function checkDetail() {
     console.log(`ID: ${locationId}`);
     console.log(`狀態: ${locationData.status}`);
     console.log(`地址: ${locationData.address || '無'}`);
+    console.log(`Root Submitter: ${locationData.submitterInfo?.displayName} (${locationData.submitterInfo?.uid})`);
 
     // 統計資訊
     console.log('\n📊 統計資訊:');

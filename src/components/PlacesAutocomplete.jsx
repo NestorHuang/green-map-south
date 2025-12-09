@@ -35,7 +35,7 @@ const PlacesAutocomplete = ({ onPlaceSelect }) => {
       <input
         type="text"
         placeholder="搜尋地點..."
-        className="w-full p-2 border border-gray-300 rounded-md"
+        className="w-full p-2 border border-gray-300 rounded-md hidden"
         autocomplete="off"
       />
     </Autocomplete>

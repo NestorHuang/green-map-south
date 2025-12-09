@@ -60,8 +60,10 @@ service cloud.firestore {
     // ==================== locations 規則 ====================
 
     match /locations/{locationId} {
-      // 所有人可讀取已核准的地點，管理員可讀取所有
-      allow read: if resource.data.status == 'approved' || isAdmin();
+      // 所有人可讀取已核准的地點，管理員可讀取所有，使用者可讀取自己提交的
+      allow read: if resource.data.status == 'approved' || 
+                     isAdmin() || 
+                     (isAuthenticated() && resource.data.submitterInfo.uid == request.auth.uid);
 
       // 管理員可完全讀寫
       allow write: if isAdmin();

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, GeoPoint, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
+import { useAuth } from '../hooks/useAuth';
 import { useLocationTypes } from '../contexts/LocationTypesContext';
 import LocationFormContent from '../components/LocationFormContent';
 import TypeSelector from '../components/TypeSelector';
 import { logLocationLockChange, logLocationDeletion, logAuditAction, AuditAction } from '../utils/auditLog';
 
 const ManageLocationsPage = () => {
+  const { user, userProfile } = useAuth();
   const { types: allLocationTypes, loading: typesLoading, getTypeById } = useLocationTypes();
   const [locations, setLocations] = useState([]);
   const [tags, setTags] = useState([]);
@@ -102,10 +104,22 @@ const ManageLocationsPage = () => {
     try {
       if (isEditing && editingLocation?.id) {
         // When editing, only update the location data and updatedBy/updatedAt
-        // DO NOT overwrite createdBy or createdAt
+        // DO NOT overwrite createdBy, createdAt, or submitterInfo (original author)
+        
+        // Exclude submitterInfo from the update payload
+        const { submitterInfo, ...dataToSave } = locationData;
+
         await updateDoc(doc(db, 'locations', editingLocation.id), {
-          ...locationData,
+          ...dataToSave,
           updatedBy: auth.currentUser?.uid || 'admin',
+          updatedByInfo: {
+            uid: user?.uid || auth.currentUser?.uid,
+            email: user?.email || auth.currentUser?.email,
+            displayName: userProfile?.displayName || user?.displayName || auth.currentUser?.displayName || '',
+            isWildernessPartner: userProfile?.isWildernessPartner || false,
+            groupName: userProfile?.groupName || '',
+            naturalName: userProfile?.naturalName || ''
+          },
           updatedAt: Timestamp.now(),
           status: 'approved',
         });

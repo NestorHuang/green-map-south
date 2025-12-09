@@ -204,6 +204,34 @@ const LocationDetailSheet = ({ location, locations = null, onClose }) => {
           </div>
         )}
 
+        {/* 顯示最後修改資訊 */}
+        {(currentLocation.updatedByInfo || (currentLocation.updatedAt && currentLocation.updatedBy && currentLocation.updatedBy !== currentLocation.submitterInfo?.uid)) && (
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-xs text-gray-600 mb-1">最後修改</p>
+            <div className="flex justify-between items-start">
+              <p className="text-sm font-medium text-gray-900">
+                {(() => {
+                  if (currentLocation.updatedByInfo) {
+                    const modifier = currentLocation.updatedByInfo;
+                    return modifier.isWildernessPartner && modifier.groupName && modifier.naturalName
+                      ? `${modifier.groupName}-${modifier.naturalName}`
+                      : (modifier.displayName || '未知使用者');
+                  }
+                  return '其他使用者';
+                })()}
+              </p>
+              {currentLocation.updatedByInfo?.isWildernessPartner && (
+                <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">荒野夥伴</span>
+              )}
+            </div>
+            {currentLocation.updatedAt && (
+              <p className="text-xs text-gray-500 mt-1">
+                {currentLocation.updatedAt.toDate().toLocaleString('zh-TW')}
+              </p>
+            )}
+          </div>
+        )}
+
         {user && (
           <div className="mt-6 border-t pt-4">
             <button onClick={() => setReportModalOpen(true)} className="text-sm text-red-500 hover:underline">回報此地點資訊有誤</button>

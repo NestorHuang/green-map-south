@@ -7,7 +7,7 @@ import LocationFormContent from './LocationFormContent';
 import { logAuditAction, AuditAction } from '../utils/auditLog';
 
 const MyLocationsModal = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { getTypeById } = useLocationTypes();
   const [myLocations, setMyLocations] = useState([]);
   const [tags, setTags] = useState([]);
@@ -113,9 +113,20 @@ const MyLocationsModal = ({ isOpen, onClose }) => {
   const handleSaveLocation = async (locationData) => {
     setLoading(true);
     try {
+      // Exclude submitterInfo from the update payload
+      const { submitterInfo, ...dataToSave } = locationData;
+
       await updateDoc(doc(db, 'locations', editingLocation.id), {
-        ...locationData,
+        ...dataToSave,
         updatedBy: user.uid,
+        updatedByInfo: {
+            uid: user.uid,
+            email: user.email,
+            displayName: userProfile?.displayName || user.displayName || '',
+            isWildernessPartner: userProfile?.isWildernessPartner || false,
+            groupName: userProfile?.groupName || '',
+            naturalName: userProfile?.naturalName || ''
+        },
         updatedAt: Timestamp.now(),
       });
 
