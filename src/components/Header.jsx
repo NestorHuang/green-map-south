@@ -60,8 +60,18 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       style={{ zIndex: 1000 }}
     >
       <div className="flex justify-between items-center mb-2">
-        <h1 className="text-xl font-bold text-green-700">親子團綠活地圖</h1>
-        
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-green-700">親子團綠活地圖</h1>
+          <a
+            href="https://nestorhuang.github.io/green-map-manual/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+          >
+            📖 操作說明
+          </a>
+        </div>
+
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-4">
           {!userLoading && user ? (
@@ -110,10 +120,10 @@ const Header = ({ tags, onTagFilter, onClearFilter, onPlaceSelect }) => {
       
       {/* Search and Filter Section (always visible) */}
       <div className={isMenuOpen ? 'hidden' : ''}>
-        {/* Search Bar */}
-        <div className="my-2">
+        {/* Search Bar - Temporarily Hidden */}
+        {/* <div className="my-2">
           <PlacesAutocomplete onPlaceSelect={onPlaceSelect} />
-        </div>
+        </div> */}
 
         {/* Tag Filters */}
         <div className="flex flex-wrap gap-2">
